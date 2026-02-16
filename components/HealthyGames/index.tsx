@@ -19,7 +19,7 @@ const HealthyGames: React.FC = () => {
 
   return (
     <div id="healthy-games" className="py-20 bg-slate-100 min-h-screen">
-      <div className="container mx-auto px-6">
+      <div className="container mx-auto px-4 md:px-6">
         
         {/* Header */}
         <div className="text-center mb-16">
@@ -78,18 +78,18 @@ const HealthyGames: React.FC = () => {
 
         {/* Active Game Area */}
         {activeGame !== GameMode.None && (
-          <div className="relative bg-white rounded-[2rem] shadow-2xl border border-slate-200 min-h-[600px] animate-in slide-in-from-bottom-10 fade-in duration-500 overflow-hidden">
+          <div className="relative bg-white rounded-[2rem] shadow-2xl border border-slate-200 min-h-[500px] md:min-h-[600px] animate-in slide-in-from-bottom-10 fade-in duration-500 overflow-hidden">
             
             {/* Close Button */}
             <button 
               onClick={() => setActiveGame(GameMode.None)} 
-              className="absolute top-6 right-6 p-2 bg-slate-100 hover:bg-slate-200 rounded-full text-slate-500 transition-colors z-20"
+              className="absolute top-4 right-4 md:top-6 md:right-6 p-2 bg-slate-100 hover:bg-slate-200 rounded-full text-slate-500 transition-colors z-20"
             >
               <X size={24} />
             </button>
 
             {/* Game Content */}
-            <div className="p-8 md:p-12">
+            <div className="p-4 pt-16 md:p-12">
               <React.Suspense fallback={
                 <div className="flex flex-col items-center justify-center p-12">
                   <Loader2 className="animate-spin text-indigo-600 mb-4" size={48} />

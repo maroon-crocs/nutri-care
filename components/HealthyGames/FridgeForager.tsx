@@ -27,14 +27,14 @@ const FridgeForager: React.FC = () => {
             </div>
 
             <div className="bg-white rounded-3xl overflow-hidden border border-slate-200 shadow-sm flex flex-col md:flex-row">
-                <div className="p-8 md:w-1/2 bg-green-50">
+                <div className="p-6 md:p-8 md:w-1/2 bg-green-50">
                         <form onSubmit={handleFridge} className="h-full flex flex-col justify-center">
                         <label className="block text-sm font-bold text-green-800 uppercase mb-3">Your Inventory</label>
                         <textarea 
                             value={fridgeInput}
                             onChange={(e) => setFridgeInput(e.target.value)}
                             placeholder="e.g. 2 eggs, stale bread, half a tomato..."
-                            className="w-full h-32 p-4 rounded-xl border-2 border-green-200 focus:border-green-500 focus:ring-0 mb-6 resize-none"
+                            className="w-full h-32 p-4 rounded-xl border-2 border-green-200 focus:border-green-500 focus:ring-0 mb-6 resize-none text-base"
                         />
                         <button disabled={loading} className="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-4 rounded-xl shadow-lg shadow-green-200 transition-all flex items-center justify-center gap-2">
                             {loading ? <Loader2 className="animate-spin" /> : <ChefHat />}
@@ -43,7 +43,7 @@ const FridgeForager: React.FC = () => {
                         </form>
                 </div>
                 
-                <div className="p-8 md:w-1/2 bg-white min-h-[400px] flex flex-col justify-center">
+                <div className="p-6 md:p-8 md:w-1/2 bg-white min-h-[300px] md:min-h-[400px] flex flex-col justify-center">
                     {!fridgeResult && !loading && (
                         <div className="text-center text-slate-400">
                             <Sparkles size={48} className="mx-auto mb-4 opacity-20" />

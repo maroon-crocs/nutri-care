@@ -26,8 +26,8 @@ const CravingCrusher: React.FC = () => {
                 <p className="text-slate-600">Tell us what junk food you want, and we'll "hack" it into a healthy version.</p>
             </div>
 
-            <div className="grid md:grid-cols-2 gap-12 items-start">
-                <div className="bg-red-50 p-8 rounded-3xl border border-red-100">
+            <div className="grid md:grid-cols-2 gap-8 md:gap-12 items-start">
+                <div className="bg-red-50 p-6 md:p-8 rounded-3xl border border-red-100">
                     <form onSubmit={handleCraving}>
                         <label className="block text-sm font-bold text-red-800 uppercase mb-2">I am craving...</label>
                         <input 
@@ -47,7 +47,7 @@ const CravingCrusher: React.FC = () => {
                     {loading && <div className="text-center pt-20 text-slate-400"><Loader2 className="animate-spin mx-auto mb-2" size={32}/>Hacking calories...</div>}
                     
                     {cravingResult && !loading && (
-                        <div className="bg-slate-900 text-white p-8 rounded-3xl shadow-xl relative overflow-hidden">
+                        <div className="bg-slate-900 text-white p-6 md:p-8 rounded-3xl shadow-xl relative overflow-hidden">
                             <div className="absolute top-0 right-0 w-64 h-64 bg-red-600 rounded-full blur-[100px] opacity-20 -translate-y-1/2 translate-x-1/2"></div>
                             
                             <h3 className="text-xl font-bold text-red-400 mb-1 uppercase tracking-widest">Cheat Code Activated</h3>

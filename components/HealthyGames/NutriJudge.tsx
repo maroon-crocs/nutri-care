@@ -40,8 +40,8 @@ const NutriJudge: React.FC = () => {
   };
 
   return (
-    <section id="nutri-judge" className="py-20 bg-slate-50 border-t border-slate-200">
-      <div className="container mx-auto px-6">
+    <div className="w-full">
+      <div className="max-w-5xl mx-auto">
         <div className="text-center max-w-2xl mx-auto mb-16">
           <div className="inline-flex items-center gap-2 text-purple-600 font-semibold bg-purple-50 px-3 py-1 rounded-full text-xs uppercase tracking-wider mb-4">
             <Award size={14} />
@@ -59,7 +59,7 @@ const NutriJudge: React.FC = () => {
         <div className="grid md:grid-cols-2 gap-12 max-w-5xl mx-auto items-start">
           
           {/* Input Side */}
-          <div className="bg-white p-8 rounded-3xl shadow-xl border border-slate-100 relative overflow-hidden">
+          <div className="bg-white p-6 md:p-8 rounded-3xl shadow-xl border border-slate-100 relative overflow-hidden">
             <div className="absolute top-0 left-0 w-full h-2 bg-gradient-to-r from-purple-500 to-pink-500"></div>
             
             <form onSubmit={handleAnalyze} className="relative z-10">
@@ -70,7 +70,7 @@ const NutriJudge: React.FC = () => {
                 value={mealDescription}
                 onChange={(e) => setMealDescription(e.target.value)}
                 placeholder="e.g. A double cheeseburger with large fries and a diet coke..."
-                className="w-full h-40 p-4 rounded-xl bg-slate-50 border-2 border-slate-200 focus:border-purple-500 focus:ring-0 transition-all resize-none text-slate-700 placeholder:text-slate-400 mb-6"
+                className="w-full h-32 md:h-40 p-4 rounded-xl bg-slate-50 border-2 border-slate-200 focus:border-purple-500 focus:ring-0 transition-all resize-none text-slate-700 placeholder:text-slate-400 mb-6 text-base"
               />
               
               <button
@@ -97,7 +97,7 @@ const NutriJudge: React.FC = () => {
             )}
 
             {!result && !isLoading && !error && (
-              <div className="h-full flex flex-col items-center justify-center text-center p-8 border-2 border-dashed border-slate-300 rounded-3xl text-slate-400 bg-slate-50/50">
+              <div className="h-full flex flex-col items-center justify-center text-center p-6 md:p-8 border-2 border-dashed border-slate-300 rounded-3xl text-slate-400 bg-slate-50/50">
                 <Quote size={48} className="mb-4 opacity-20" />
                 <p className="text-lg font-medium">"I'm waiting to judge your culinary choices..."</p>
                 <p className="text-sm mt-2">Type your meal to begin.</p>
@@ -171,7 +171,7 @@ const NutriJudge: React.FC = () => {
 
         </div>
       </div>
-    </section>
+    </div>
   );
 };
 
