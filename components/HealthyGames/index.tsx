@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
-import { Gamepad2, Pizza, BrainCircuit, Refrigerator, X, Award } from 'lucide-react';
-import NutriJudge from './NutriJudge';
-import CravingCrusher from './CravingCrusher';
-import MoodFood from './MoodFood';
-import FridgeForager from './FridgeForager';
+import { Gamepad2, Pizza, BrainCircuit, Refrigerator, X, Award, Loader2 } from 'lucide-react';
+
+const NutriJudge = React.lazy(() => import('./NutriJudge'));
+const CravingCrusher = React.lazy(() => import('./CravingCrusher'));
+const MoodFood = React.lazy(() => import('./MoodFood'));
+const FridgeForager = React.lazy(() => import('./FridgeForager'));
 
 enum GameMode {
   None = 'NONE',
@@ -89,19 +90,24 @@ const HealthyGames: React.FC = () => {
 
             {/* Game Content */}
             <div className="p-8 md:p-12">
-              
-              {/* NUTRI JUDGE */}
-              {activeGame === GameMode.NutriJudge && <NutriJudge />}
+              <React.Suspense fallback={
+                <div className="flex flex-col items-center justify-center p-12">
+                  <Loader2 className="animate-spin text-indigo-600 mb-4" size={48} />
+                  <p className="text-slate-500 font-medium">Loading Game...</p>
+                </div>
+              }>
+                {/* NUTRI JUDGE */}
+                {activeGame === GameMode.NutriJudge && <NutriJudge />}
 
-              {/* CRAVING CRUSHER */}
-              {activeGame === GameMode.CravingCrusher && <CravingCrusher />}
+                {/* CRAVING CRUSHER */}
+                {activeGame === GameMode.CravingCrusher && <CravingCrusher />}
 
-              {/* MOOD FOOD */}
-              {activeGame === GameMode.MoodFood && <MoodFood />}
+                {/* MOOD FOOD */}
+                {activeGame === GameMode.MoodFood && <MoodFood />}
 
-              {/* FRIDGE FORAGER */}
-              {activeGame === GameMode.FridgeForager && <FridgeForager />}
-
+                {/* FRIDGE FORAGER */}
+                {activeGame === GameMode.FridgeForager && <FridgeForager />}
+              </React.Suspense>
             </div>
           </div>
         )}
