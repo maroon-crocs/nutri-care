@@ -6,9 +6,7 @@ let ai: GoogleGenAI | null = null;
 const getAiClient = (): GoogleGenAI => {
   if (!ai) {
     // Safely access process.env.API_KEY to prevent ReferenceError if process is not defined in some environments
-    const apiKey = (typeof process !== 'undefined' && process.env && process.env.API_KEY) 
-      ? process.env.API_KEY 
-      : '';
+    const apiKey = import.meta.env.VITE_GEMINI_API_KEY || '';
       
     // We initialize with the key (or empty string which will cause an API error later, caught by try/catch)
     ai = new GoogleGenAI({ apiKey });
