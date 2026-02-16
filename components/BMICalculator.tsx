@@ -15,6 +15,8 @@ const BMICalculator: React.FC<BMICalculatorProps> = ({ onBMIChange }) => {
   const [isLoading, setIsLoading] = useState(false);
   const [showConfetti, setShowConfetti] = useState(false);
   const confettiCanvasRef = useRef<HTMLCanvasElement>(null);
+  const resultRef = useRef<HTMLDivElement>(null);
+  const isMobile = window.innerWidth < 1024; // lg breakpoint
 
   // Confetti Animation Logic
   useEffect(() => {
@@ -114,6 +116,14 @@ const BMICalculator: React.FC<BMICalculatorProps> = ({ onBMIChange }) => {
     // Fetch AI Advice
     setIsLoading(true);
     setAiAdvice(''); // Clear previous advice
+
+    // Scroll to result on mobile
+    if (isMobile) {
+      setTimeout(() => {
+        resultRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }, 100);
+    }
+
     try {
       const advice = await generateBMIAdvice(bmi, status);
       setAiAdvice(advice);
@@ -195,7 +205,7 @@ const BMICalculator: React.FC<BMICalculatorProps> = ({ onBMIChange }) => {
           </div>
 
           {/* Results Side */}
-          <div className="lg:w-7/12 w-full">
+          <div ref={resultRef} className="lg:w-7/12 w-full scroll-mt-24">
             {result ? (
               <div className="grid md:grid-cols-2 gap-6 animate-in fade-in zoom-in duration-300">
                 

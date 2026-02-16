@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { BrainCircuit, Loader2 } from 'lucide-react';
 import { generateMoodSnack } from '../../services/geminiService';
 
@@ -23,6 +23,8 @@ const MoodFood: React.FC = () => {
     const [selectedMood, setSelectedMood] = useState<any>(null);
     const [moodResult, setMoodResult] = useState<any>(null);
     const [loading, setLoading] = useState(false);
+    const resultRef = useRef<HTMLDivElement>(null);
+    const isMobile = window.innerWidth < 768;
   
     const moods = [
       { id: 'stressed', emoji: "😫", label: "Stressed", color: "bg-red-50 hover:bg-red-100", border: 'border-red-200' },
@@ -37,6 +39,14 @@ const MoodFood: React.FC = () => {
       setSelectedMood(mood);
       setMoodResult(null);
       setLoading(true);
+
+      // Scroll to result area immediately on mobile to show loading state
+      if (isMobile) {
+        setTimeout(() => {
+            resultRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }, 100);
+      }
+
       const result = await generateMoodSnack(mood.label);
       setMoodResult(result);
       setLoading(false);
@@ -60,7 +70,7 @@ const MoodFood: React.FC = () => {
                 ))}
             </div>
 
-            <div className="min-h-[200px] mt-10">
+            <div ref={resultRef} className="min-h-[200px] mt-10 scroll-mt-24">
                 {loading && selectedMood && (
                     <div className="flex flex-col items-center justify-center text-slate-500">
                     <Loader2 className="animate-spin mb-4 text-blue-500" size={40} />
