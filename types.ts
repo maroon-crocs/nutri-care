@@ -35,3 +35,16 @@ export interface BMIResult {
   score: number;
   badge: string;
 }
+
+export interface MealAnalysisResult {
+  score: number;
+  tier: 'S' | 'A' | 'B' | 'C' | 'D' | 'F';
+  title: string;
+  commentary: string;
+  calories: string;
+  macros: {
+    protein: string;
+    carbs: string;
+    fats: string;
+  };
+}

@@ -1,18 +1,29 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Send, Bot, User, Sparkles, XCircle } from 'lucide-react';
-import { ChatMessage } from '../types';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
+import { ChatMessage, BMIResult } from '../types';
 import { sendMessageToGemini } from '../services/geminiService';
 
-const AIAssistant: React.FC = () => {
+interface AIAssistantProps {
+  bmiResult: BMIResult | null;
+}
+
+const AIAssistant: React.FC<AIAssistantProps> = ({ bmiResult }) => {
   const [messages, setMessages] = useState<ChatMessage[]>([
     { role: 'model', text: "Hello! I'm NutriGuide AI. Ask me anything about nutrition, healthy eating, or lifestyle tips!" }
   ]);
   const [input, setInput] = useState('');
   const [isTyping, setIsTyping] = useState(false);
-  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const chatContainerRef = useRef<HTMLDivElement>(null);
 
   const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    if (chatContainerRef.current) {
+      chatContainerRef.current.scrollTo({
+        top: chatContainerRef.current.scrollHeight,
+        behavior: 'smooth'
+      });
+    }
   };
 
   useEffect(() => {
@@ -31,6 +42,15 @@ const AIAssistant: React.FC = () => {
     try {
       // Pass the last few messages for context (keeping it light)
       const history = messages.slice(-4).map(m => ({ role: m.role, text: m.text }));
+      
+      // Inject BMI context into the history for the AI to see, but not displayed to user
+      if (bmiResult) {
+        history.unshift({
+          role: 'user',
+          text: `Context: My BMI is ${bmiResult.bmi.toFixed(1)} (${bmiResult.status}). Health Score: ${bmiResult.score}/100. Please answer the following question keeping this context in mind.`
+        });
+      }
+
       const responseText = await sendMessageToGemini(userMessage.text, history);
       
       const botMessage: ChatMessage = { role: 'model', text: responseText };
@@ -99,7 +119,7 @@ const AIAssistant: React.FC = () => {
               </div>
 
               {/* Chat Area */}
-              <div className="flex-1 overflow-y-auto p-6 space-y-6 bg-slate-50">
+              <div ref={chatContainerRef} className="flex-1 overflow-y-auto p-6 space-y-6 bg-slate-50">
                 {messages.map((msg, index) => (
                   <div 
                     key={index} 
@@ -113,7 +133,19 @@ const AIAssistant: React.FC = () => {
                         ? 'bg-slate-800 text-white rounded-tr-none' 
                         : 'bg-white text-slate-700 shadow-sm border border-slate-100 rounded-tl-none'
                     } ${msg.isError ? 'border-red-200 bg-red-50 text-red-600' : ''}`}>
-                      {msg.text}
+                      <ReactMarkdown 
+                        remarkPlugins={[remarkGfm]}
+                        components={{
+                          ul: ({node, ...props}) => <ul className="list-disc pl-4 mb-2 space-y-1" {...props} />,
+                          ol: ({node, ...props}) => <ol className="list-decimal pl-4 mb-2 space-y-1" {...props} />,
+                          li: ({node, ...props}) => <li className="pl-1" {...props} />,
+                          p: ({node, ...props}) => <p className="mb-2 last:mb-0" {...props} />,
+                          strong: ({node, ...props}) => <span className="font-semibold" {...props} />,
+                          a: ({node, ...props}) => <a className="underline hover:opacity-80" target="_blank" rel="noopener noreferrer" {...props} />,
+                        }}
+                      >
+                        {msg.text}
+                      </ReactMarkdown>
                     </div>
                   </div>
                 ))}
@@ -131,7 +163,6 @@ const AIAssistant: React.FC = () => {
                     </div>
                   </div>
                 )}
-                <div ref={messagesEndRef} />
               </div>
 
               {/* Input Area */}

@@ -3,7 +3,11 @@ import { Calculator, ArrowRight, Loader2, Activity, Trophy, Zap, Target, Award }
 import { BMIStatus, BMIResult } from '../types';
 import { generateBMIAdvice } from '../services/geminiService';
 
-const BMICalculator: React.FC = () => {
+interface BMICalculatorProps {
+  onBMIChange?: (result: BMIResult) => void;
+}
+
+const BMICalculator: React.FC<BMICalculatorProps> = ({ onBMIChange }) => {
   const [weight, setWeight] = useState<number>(65);
   const [height, setHeight] = useState<number>(170);
   const [result, setResult] = useState<BMIResult | null>(null);
@@ -105,6 +109,7 @@ const BMICalculator: React.FC = () => {
 
     const calculatedResult: BMIResult = { bmi, status, color, score, badge };
     setResult(calculatedResult);
+    if (onBMIChange) onBMIChange(calculatedResult);
     
     // Fetch AI Advice
     setIsLoading(true);
