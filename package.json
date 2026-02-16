@@ -1,6 +1,7 @@
 {
   "name": "nutriguide-ai",
   "private": true,
+  "homepage": "https://maroon-crocs.github.io/nutri-care",
   "version": "0.0.0",
   "type": "module",
   "scripts": {
