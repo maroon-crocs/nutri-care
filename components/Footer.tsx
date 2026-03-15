@@ -1,5 +1,5 @@
 import React from 'react';
-import { Leaf } from 'lucide-react';
+import { Leaf, Instagram } from 'lucide-react';
 
 const Footer: React.FC = () => {
   return (
@@ -36,6 +36,22 @@ const Footer: React.FC = () => {
               <li><a href="#" className="hover:text-leaf-500 transition-colors">Cookie Policy</a></li>
             </ul>
           </div>
+        </div>
+
+        <div className="mb-10 flex flex-col gap-4 rounded-3xl border border-slate-800 bg-slate-950 px-6 py-5 md:flex-row md:items-center md:justify-between">
+          <div>
+            <p className="text-white font-semibold">Follow Dietitian Iram on Instagram</p>
+            <p className="text-sm text-slate-400">Watch nutrition reels, practical health tips, and everyday meal guidance.</p>
+          </div>
+          <a
+            href="https://www.instagram.com/dietitian__iram/"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-2 text-pink-400 hover:text-pink-300 transition-colors font-semibold"
+          >
+            <Instagram size={18} />
+            @dietitian__iram
+          </a>
         </div>
         
         <div className="border-t border-slate-800 pt-8 flex flex-col md:flex-row justify-between items-center text-sm">

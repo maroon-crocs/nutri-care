@@ -6,6 +6,7 @@ const Services = React.lazy(() => import('./components/Services'));
 const BMICalculator = React.lazy(() => import('./components/BMICalculator'));
 const HealthyGames = React.lazy(() => import('./components/HealthyGames'));
 const AIAssistant = React.lazy(() => import('./components/AIAssistant'));
+const SocialPresence = React.lazy(() => import('./components/SocialPresence'));
 const Testimonials = React.lazy(() => import('./components/Testimonials'));
 const Contact = React.lazy(() => import('./components/Contact'));
 const Footer = React.lazy(() => import('./components/Footer'));
@@ -27,6 +28,7 @@ const App: React.FC = () => {
           <BMICalculator onBMIChange={setBmiResult} />
           <HealthyGames />
           <AIAssistant bmiResult={bmiResult} />
+          <SocialPresence />
           <Testimonials />
           <Contact />
         </React.Suspense>
