@@ -34,6 +34,8 @@ After deploy, set `VITE_API_BASE_URL` in your frontend build environment to your
 If you deploy the frontend on a custom domain root, leave `VITE_BASE_PATH` unset or set it to `/`.
 If you deploy the frontend under a project subpath, set `VITE_BASE_PATH` to that subpath, for example `/nutri-care/`.
 
+This repo includes [.env.production](.env.production) so production builds target the live Worker URL by default.
+
 ## Security note
 
 This repo no longer reads a Gemini key from the frontend bundle. If your key was flagged as leaked, rotate it in Google AI Studio and store the replacement only in Cloudflare Worker secrets or local `.dev.vars`.
