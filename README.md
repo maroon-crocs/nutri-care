@@ -16,7 +16,7 @@ This app uses a Cloudflare Worker for Gemini requests so the API key stays off t
 3. Copy [.env.example](.env.example) to `.env.local`
 4. Set `GEMINI_API_KEY` in `.dev.vars`
 5. If you want the frontend to call a remote Worker in production, set `VITE_API_BASE_URL` in `.env.local`
-4. Run the app:
+6. Run the app:
    `npm run dev`
 
 The frontend runs at `http://localhost:3000` and proxies AI requests to the local Worker at `http://127.0.0.1:3001`.
@@ -31,6 +31,8 @@ The frontend runs at `http://localhost:3000` and proxies AI requests to the loca
    `npm run deploy:worker`
 
 After deploy, set `VITE_API_BASE_URL` in your frontend build environment to your Worker URL, for example `https://nutri-care-api.<subdomain>.workers.dev`.
+If you deploy the frontend on a custom domain root, leave `VITE_BASE_PATH` unset or set it to `/`.
+If you deploy the frontend under a project subpath, set `VITE_BASE_PATH` to that subpath, for example `/nutri-care/`.
 
 ## Security note
 
