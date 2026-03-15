@@ -23,6 +23,7 @@ const MoodFood: React.FC = () => {
     const [selectedMood, setSelectedMood] = useState<any>(null);
     const [moodResult, setMoodResult] = useState<any>(null);
     const [loading, setLoading] = useState(false);
+    const [error, setError] = useState<string | null>(null);
     const resultRef = useRef<HTMLDivElement>(null);
     const isMobile = window.innerWidth < 768;
   
@@ -38,6 +39,7 @@ const MoodFood: React.FC = () => {
     const handleMoodSelect = async (mood: any) => {
       setSelectedMood(mood);
       setMoodResult(null);
+      setError(null);
       setLoading(true);
 
       // Scroll to result area immediately on mobile to show loading state
@@ -47,9 +49,14 @@ const MoodFood: React.FC = () => {
         }, 100);
       }
 
-      const result = await generateMoodSnack(mood.label);
-      setMoodResult(result);
-      setLoading(false);
+      try {
+        const result = await generateMoodSnack(mood.label);
+        setMoodResult(result);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Failed to generate a mood-based snack. Please try again.');
+      } finally {
+        setLoading(false);
+      }
     };
 
     return (
@@ -75,6 +82,12 @@ const MoodFood: React.FC = () => {
                     <div className="flex flex-col items-center justify-center text-slate-500">
                     <Loader2 className="animate-spin mb-4 text-blue-500" size={40} />
                     <p>Consulting Ayurvedic & Modern Nutrition AI...</p>
+                    </div>
+                )}
+
+                {error && !loading && (
+                    <div className="mx-auto max-w-3xl rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+                        {error}
                     </div>
                 )}
 

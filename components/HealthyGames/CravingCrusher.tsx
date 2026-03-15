@@ -6,15 +6,22 @@ const CravingCrusher: React.FC = () => {
     const [cravingInput, setCravingInput] = useState('');
     const [cravingResult, setCravingResult] = useState<any>(null);
     const [loading, setLoading] = useState(false);
+    const [error, setError] = useState<string | null>(null);
 
     const handleCraving = async (e: React.FormEvent) => {
         e.preventDefault();
         if(!cravingInput.trim()) return;
         setLoading(true);
+        setError(null);
         setCravingResult(null);
-        const result = await generateCravingHack(cravingInput);
-        setCravingResult(result);
-        setLoading(false);
+        try {
+            const result = await generateCravingHack(cravingInput);
+            setCravingResult(result);
+        } catch (err) {
+            setError(err instanceof Error ? err.message : 'Failed to generate a craving hack. Please try again.');
+        } finally {
+            setLoading(false);
+        }
     };
 
     return (
@@ -45,6 +52,7 @@ const CravingCrusher: React.FC = () => {
 
                 <div className="min-h-[300px]">
                     {loading && <div className="text-center pt-20 text-slate-400"><Loader2 className="animate-spin mx-auto mb-2" size={32}/>Hacking calories...</div>}
+                    {error && !loading && <div className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">{error}</div>}
                     
                     {cravingResult && !loading && (
                         <div className="bg-slate-900 text-white p-6 md:p-8 rounded-3xl shadow-xl relative overflow-hidden">

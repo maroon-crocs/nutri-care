@@ -2,19 +2,36 @@
 <img width="1200" height="475" alt="GHBanner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
 </div>
 
-# Run and deploy your AI Studio app
+# Run NutriGuide locally
 
-This contains everything you need to run your app locally.
-
-View your app in AI Studio: https://ai.studio/apps/drive/1IVOKH0SnbBdPcM4H-8PnVih170UwobHj
+This app uses a Cloudflare Worker for Gemini requests so the API key stays off the client bundle.
 
 ## Run Locally
 
 **Prerequisites:**  Node.js
 
-
 1. Install dependencies:
    `npm install`
-2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
-3. Run the app:
+2. Copy [.dev.vars.example](.dev.vars.example) to `.dev.vars`
+3. Copy [.env.example](.env.example) to `.env.local`
+4. Set `GEMINI_API_KEY` in `.dev.vars`
+5. If you want the frontend to call a remote Worker in production, set `VITE_API_BASE_URL` in `.env.local`
+4. Run the app:
    `npm run dev`
+
+The frontend runs at `http://localhost:3000` and proxies AI requests to the local Worker at `http://127.0.0.1:3001`.
+
+## Deploy the Worker
+
+1. Authenticate Wrangler:
+   `npx wrangler login`
+2. Add the Gemini key as a secret:
+   `npx wrangler secret put GEMINI_API_KEY`
+3. Deploy:
+   `npm run deploy:worker`
+
+After deploy, set `VITE_API_BASE_URL` in your frontend build environment to your Worker URL, for example `https://nutri-care-api.<subdomain>.workers.dev`.
+
+## Security note
+
+This repo no longer reads a Gemini key from the frontend bundle. If your key was flagged as leaked, rotate it in Google AI Studio and store the replacement only in Cloudflare Worker secrets or local `.dev.vars`.

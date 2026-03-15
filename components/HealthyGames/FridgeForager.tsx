@@ -6,15 +6,22 @@ const FridgeForager: React.FC = () => {
     const [fridgeInput, setFridgeInput] = useState('');
     const [fridgeResult, setFridgeResult] = useState<any>(null);
     const [loading, setLoading] = useState(false);
+    const [error, setError] = useState<string | null>(null);
 
     const handleFridge = async (e: React.FormEvent) => {
         e.preventDefault();
         if(!fridgeInput.trim()) return;
         setLoading(true);
+        setError(null);
         setFridgeResult(null);
-        const result = await generateLeftoverRecipe(fridgeInput);
-        setFridgeResult(result);
-        setLoading(false);
+        try {
+            const result = await generateLeftoverRecipe(fridgeInput);
+            setFridgeResult(result);
+        } catch (err) {
+            setError(err instanceof Error ? err.message : 'Failed to invent a recipe. Please try again.');
+        } finally {
+            setLoading(false);
+        }
     };
 
     return (
@@ -52,6 +59,7 @@ const FridgeForager: React.FC = () => {
                     )}
 
                         {loading && <Loader2 className="animate-spin mx-auto text-green-500" size={40} />}
+                        {error && !loading && <div className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">{error}</div>}
 
                         {fridgeResult && !loading && (
                             <div className="animate-in fade-in slide-in-from-right-4 duration-500">
