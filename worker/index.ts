@@ -23,6 +23,7 @@ interface GeminiRequestMap {
 }
 
 const MODEL = 'gemini-2.5-flash';
+// Auto-deploy probe: safe no-op change to test GitHub-triggered Worker deployment.
 
 const SYSTEM_INSTRUCTION = `
 You are NutriGuide, a professional, empathetic, and knowledgeable nutritionist AI assistant.
