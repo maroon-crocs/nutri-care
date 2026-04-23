@@ -1,5 +1,6 @@
 import type {
   DietPlan,
+  DietPlanGenerationResult,
   DietPlanTemplate,
   DietPlanTemplateId,
   MealSlot,
@@ -312,4 +313,45 @@ export const buildWhatsAppDietPlanUrl = (plan: DietPlan): string => {
   const phone = normalizeWhatsAppNumber(plan.patient.phone);
   const message = encodeURIComponent(formatDietPlanForSharing(plan));
   return `https://wa.me/${phone}?text=${message}`;
+};
+
+export const mergeGeneratedDietPlan = (
+  plan: DietPlan,
+  generated: DietPlanGenerationResult,
+): DietPlan => {
+  const generatedDays = Array.isArray(generated.days) ? generated.days : [];
+
+  return {
+    ...plan,
+    title: generated.title?.trim() || plan.title,
+    instructions: generated.instructions?.trim() || plan.instructions,
+    days: plan.days.map((day, index) => {
+      const generatedDay =
+        generatedDays.find(
+          (item) =>
+            item.id === day.id ||
+            item.label?.toLowerCase() === day.label.toLowerCase(),
+        ) ?? generatedDays[index];
+      const meals = emptyMeals();
+
+      MEAL_SLOTS.forEach((slot) => {
+        const generatedMeal = generatedDay?.meals?.[slot.id];
+        meals[slot.id] =
+          typeof generatedMeal === 'string' && generatedMeal.trim()
+            ? generatedMeal.trim()
+            : day.meals[slot.id];
+      });
+
+      return {
+        ...day,
+        label: day.label,
+        meals,
+        note:
+          typeof generatedDay?.note === 'string' && generatedDay.note.trim()
+            ? generatedDay.note.trim()
+            : day.note,
+      };
+    }),
+    updatedAt: new Date().toISOString(),
+  };
 };

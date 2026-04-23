@@ -96,3 +96,10 @@ export interface DietPlanTemplate {
   instructions: string;
   meals: Array<Record<MealSlotKey, string>>;
 }
+
+export interface DietPlanGenerationResult {
+  title: string;
+  instructions: string;
+  days: DietPlanDay[];
+  reviewNotes: string[];
+}

@@ -14,6 +14,15 @@ rounds:
   - round: 3
     tasks:
       - task-03
+  - round: 4
+    tasks:
+      - task-04
+  - round: 5
+    tasks:
+      - task-05
+  - round: 6
+    tasks:
+      - task-06
 tasks:
   - id: task-01
     title: Add diet plan types and helper functions
@@ -44,6 +53,39 @@ tasks:
       - components/Header.tsx
     depends_on:
       - task-02
+    agent: false
+    test: npm run build
+    done_when: npm run build
+  - id: task-04
+    title: Add AI diet plan draft types and normalization
+    skill: build
+    files:
+      - types.ts
+      - utils/dietPlan.ts
+      - tests/dietPlan.test.mjs
+    depends_on:
+      - task-03
+    agent: false
+    test: node --experimental-strip-types --test tests/dietPlan.test.mjs
+    done_when: node --experimental-strip-types --test tests/dietPlan.test.mjs
+  - id: task-05
+    title: Add Gemini diet plan generation action
+    skill: build
+    files:
+      - services/geminiService.ts
+      - worker/index.ts
+    depends_on:
+      - task-04
+    agent: false
+    test: npm run build
+    done_when: npm run build
+  - id: task-06
+    title: Add AI generation controls to diet plan creator
+    skill: build
+    files:
+      - components/DietPlanCreator.tsx
+    depends_on:
+      - task-05
     agent: false
     test: npm run build
     done_when: npm run build

@@ -7,6 +7,7 @@ import {
   createEmptyDietPlan,
   formatDietPlanForSharing,
   MEAL_SLOTS,
+  mergeGeneratedDietPlan,
   normalizeWhatsAppNumber,
 } from '../utils/dietPlan.ts';
 
@@ -65,4 +66,36 @@ test('buildWhatsAppDietPlanUrl encodes the plan message', () => {
 
   assert.ok(url.startsWith('https://wa.me/919876543210?text='));
   assert.ok(url.includes('Zoya'));
+});
+
+test('mergeGeneratedDietPlan keeps patient details and normalizes meal slots', () => {
+  const plan = createEmptyDietPlan();
+  plan.patient.name = 'Ayesha';
+  plan.days[0].meals.dinner = 'Existing dinner';
+
+  const merged = mergeGeneratedDietPlan(plan, {
+    title: 'AI Weekly Plan',
+    instructions: 'Review portions during follow-up.',
+    reviewNotes: ['Confirm medication timing.'],
+    days: [
+      {
+        id: 'monday',
+        label: 'Monday',
+        meals: {
+          breakfast: 'Moong dal chilla',
+          lunch: 'Dal, roti, salad',
+          eveningSnack: 'Roasted chana',
+          dinner: '',
+        },
+        note: 'Walk for 20 minutes.',
+      },
+    ],
+  });
+
+  assert.equal(merged.patient.name, 'Ayesha');
+  assert.equal(merged.title, 'AI Weekly Plan');
+  assert.equal(merged.days.length, 7);
+  assert.equal(merged.days[0].meals.breakfast, 'Moong dal chilla');
+  assert.equal(merged.days[0].meals.dinner, 'Existing dinner');
+  assert.equal(merged.days[0].note, 'Walk for 20 minutes.');
 });
