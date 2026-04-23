@@ -3,12 +3,16 @@ import test from 'node:test';
 
 import {
   applyDietPlanTemplate,
+  buildInstagramProfileUrl,
   buildWhatsAppDietPlanUrl,
   createEmptyDietPlan,
+  formatDietPlanForInstagram,
   formatDietPlanForSharing,
   MEAL_SLOTS,
   mergeGeneratedDietPlan,
+  normalizeInstagramHandle,
   normalizeWhatsAppNumber,
+  splitTextIntoShareChunks,
 } from '../utils/dietPlan.ts';
 
 test('createEmptyDietPlan creates seven days with four meal slots', () => {
@@ -66,6 +70,37 @@ test('buildWhatsAppDietPlanUrl encodes the plan message', () => {
 
   assert.ok(url.startsWith('https://wa.me/919876543210?text='));
   assert.ok(url.includes('Zoya'));
+});
+
+test('Instagram helpers prepare profile URLs and plain text diet plans', () => {
+  const plan = createEmptyDietPlan();
+  plan.patient.name = 'Sana';
+  plan.patient.instagramHandle = '@sana.health';
+  plan.days[0].meals.breakfast = 'Vegetable poha with curd';
+
+  const text = formatDietPlanForInstagram(plan);
+
+  assert.equal(normalizeInstagramHandle(' @sana.health!! '), 'sana.health');
+  assert.equal(
+    buildInstagramProfileUrl('@sana.health'),
+    'https://www.instagram.com/sana.health/',
+  );
+  assert.match(text, /Patient: Sana/);
+  assert.match(text, /Breakfast \(8:00 AM\): Vegetable poha with curd/);
+  assert.doesNotMatch(text, /\*Patient:\*/);
+});
+
+test('splitTextIntoShareChunks keeps long Instagram messages in ordered parts', () => {
+  const chunks = splitTextIntoShareChunks(
+    ['Monday lunch dal roti salad', 'Tuesday dinner khichdi curd', 'Wednesday fruit bowl']
+      .join('\n\n')
+      .repeat(20),
+    180,
+  );
+
+  assert.ok(chunks.length > 1);
+  assert.ok(chunks.every((chunk) => chunk.length <= 180));
+  assert.match(chunks.join(' '), /Monday lunch/);
 });
 
 test('mergeGeneratedDietPlan keeps patient details and normalizes meal slots', () => {

@@ -67,6 +67,7 @@ export interface DietPlanDay {
 export interface DietPlanPatient {
   name: string;
   phone: string;
+  instagramHandle: string;
   age: string;
   goal: string;
   startDate: string;

@@ -5,6 +5,7 @@ import {
   Clipboard,
   Copy,
   FileText,
+  Instagram,
   Loader2,
   Phone,
   Printer,
@@ -21,9 +22,13 @@ import {
   createEmptyDietPlan,
   DIET_PLAN_STORAGE_KEY,
   DIET_PLAN_TEMPLATES,
+  buildInstagramProfileUrl,
+  formatDietPlanForInstagram,
   formatDietPlanForSharing,
   MEAL_SLOTS,
   mergeGeneratedDietPlan,
+  normalizeInstagramHandle,
+  splitTextIntoShareChunks,
 } from '../utils/dietPlan';
 
 type NoticeState = {
@@ -45,6 +50,7 @@ const DietPlanCreator: React.FC = () => {
   const [isLoaded, setIsLoaded] = useState(false);
   const [isGeneratingDietPlan, setIsGeneratingDietPlan] = useState(false);
   const [aiReviewNotes, setAiReviewNotes] = useState<string[]>([]);
+  const [instagramChunkIndex, setInstagramChunkIndex] = useState(0);
 
   useEffect(() => {
     const savedPlan = window.localStorage.getItem(DIET_PLAN_STORAGE_KEY);
@@ -72,7 +78,18 @@ const DietPlanCreator: React.FC = () => {
   }, [isLoaded, plan]);
 
   const shareText = useMemo(() => formatDietPlanForSharing(plan), [plan]);
+  const instagramText = useMemo(() => formatDietPlanForInstagram(plan), [plan]);
+  const instagramChunks = useMemo(
+    () => splitTextIntoShareChunks(instagramText),
+    [instagramText],
+  );
   const activeDay = plan.days[activeDayIndex] ?? plan.days[0];
+
+  useEffect(() => {
+    if (instagramChunkIndex >= instagramChunks.length) {
+      setInstagramChunkIndex(Math.max(instagramChunks.length - 1, 0));
+    }
+  }, [instagramChunkIndex, instagramChunks.length]);
 
   const updatePlan = (updater: (current: DietPlan) => DietPlan) => {
     setPlan((current) => ({
@@ -239,6 +256,37 @@ const DietPlanCreator: React.FC = () => {
     }
   };
 
+  const copyInstagramText = async (text: string, successMessage: string) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      setNotice({ type: 'success', message: successMessage });
+    } catch {
+      setNotice({
+        type: 'error',
+        message: 'Copy failed. Select the preview text and copy it manually.',
+      });
+    }
+  };
+
+  const copyInstagramChunk = async () => {
+    const chunk = instagramChunks[instagramChunkIndex];
+
+    if (!chunk) {
+      setNotice({ type: 'error', message: 'No Instagram message to copy.' });
+      return;
+    }
+
+    await copyInstagramText(
+      chunk,
+      `Instagram part ${instagramChunkIndex + 1} copied.`,
+    );
+  };
+
+  const openInstagram = () => {
+    const url = buildInstagramProfileUrl(plan.patient.instagramHandle || '');
+    window.open(url, '_blank', 'noopener,noreferrer');
+  };
+
   const sendToWhatsApp = () => {
     if (!plan.patient.phone.trim()) {
       setNotice({
@@ -270,7 +318,7 @@ const DietPlanCreator: React.FC = () => {
               </h1>
               <p className="mt-4 text-base leading-relaxed text-slate-600">
                 Build a complete seven-day plan with four meals per day, then
-                copy, print, or send it to the patient on WhatsApp.
+                copy, print, or share it through WhatsApp and Instagram.
               </p>
             </div>
             <div className="flex flex-wrap gap-3">
@@ -383,6 +431,29 @@ const DietPlanCreator: React.FC = () => {
                 </div>
               </label>
               <label>
+                <span className={labelClassName}>Instagram Handle</span>
+                <div className="relative">
+                  <Instagram
+                    size={18}
+                    className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-slate-400"
+                  />
+                  <input
+                    value={plan.patient.instagramHandle || ''}
+                    onChange={(event) =>
+                      updatePatientField('instagramHandle', event.target.value)
+                    }
+                    onBlur={(event) =>
+                      updatePatientField(
+                        'instagramHandle',
+                        normalizeInstagramHandle(event.target.value),
+                      )
+                    }
+                    className={`${inputClassName} pl-11`}
+                    placeholder="@client_username"
+                  />
+                </div>
+              </label>
+              <label>
                 <span className={labelClassName}>Age</span>
                 <input
                   value={plan.patient.age}
@@ -433,9 +504,95 @@ const DietPlanCreator: React.FC = () => {
                   }
                   className={inputClassName}
                   placeholder="Vegetarian, lactose intolerance, thyroid, food dislikes"
-                />
+                  />
               </label>
             </div>
+          </div>
+
+          <div className="rounded-lg border border-pink-200 bg-white p-6 shadow-sm">
+            <div className="flex flex-col gap-5 xl:flex-row xl:items-center xl:justify-between">
+              <div className="max-w-2xl">
+                <div className="mb-3 flex items-center gap-3">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-pink-600 text-white">
+                    <Instagram size={20} />
+                  </div>
+                  <div>
+                    <h2 className="text-lg font-bold text-slate-900">
+                      Instagram DM Share
+                    </h2>
+                    <p className="text-sm text-slate-500">
+                      Copy the plan, open Instagram, and paste it into the
+                      client chat. Phone number is not required.
+                    </p>
+                  </div>
+                </div>
+                <div className="flex flex-wrap gap-2 text-xs font-semibold">
+                  <span className="rounded-full bg-pink-50 px-3 py-1 text-pink-700">
+                    Handle:{' '}
+                    {plan.patient.instagramHandle
+                      ? `@${normalizeInstagramHandle(plan.patient.instagramHandle)}`
+                      : 'Optional'}
+                  </span>
+                  <span className="rounded-full bg-slate-100 px-3 py-1 text-slate-600">
+                    {instagramChunks.length} message part
+                    {instagramChunks.length === 1 ? '' : 's'}
+                  </span>
+                  <span className="rounded-full bg-slate-100 px-3 py-1 text-slate-600">
+                    {instagramText.length.toLocaleString()} characters
+                  </span>
+                </div>
+              </div>
+              <div className="flex flex-wrap gap-3">
+                <button
+                  type="button"
+                  onClick={() =>
+                    copyInstagramText(
+                      instagramText,
+                      'Full Instagram message copied.',
+                    )
+                  }
+                  className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg border border-pink-200 px-4 text-sm font-semibold text-pink-700 transition hover:bg-pink-50"
+                >
+                  <Clipboard size={17} />
+                  Copy Full
+                </button>
+                <button
+                  type="button"
+                  onClick={copyInstagramChunk}
+                  className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg border border-pink-200 px-4 text-sm font-semibold text-pink-700 transition hover:bg-pink-50"
+                >
+                  <Copy size={17} />
+                  Copy Part {instagramChunkIndex + 1}
+                </button>
+                <button
+                  type="button"
+                  onClick={openInstagram}
+                  className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-pink-600 px-4 text-sm font-semibold text-white transition hover:bg-pink-700"
+                >
+                  <Instagram size={17} />
+                  Open Instagram
+                </button>
+              </div>
+            </div>
+
+            {instagramChunks.length > 1 && (
+              <div className="mt-5 flex flex-wrap gap-2">
+                {instagramChunks.map((_, index) => (
+                  <button
+                    key={index}
+                    type="button"
+                    onClick={() => setInstagramChunkIndex(index)}
+                    className={`min-h-10 rounded-lg border px-3 text-sm font-semibold transition ${
+                      index === instagramChunkIndex
+                        ? 'border-pink-500 bg-pink-50 text-pink-700'
+                        : 'border-slate-200 text-slate-600 hover:border-pink-200'
+                    }`}
+                  >
+                    Part {index + 1}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
 
           <div className="rounded-lg border border-leaf-200 bg-white p-6 shadow-sm">

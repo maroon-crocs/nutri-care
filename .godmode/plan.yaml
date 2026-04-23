@@ -23,6 +23,12 @@ rounds:
   - round: 6
     tasks:
       - task-06
+  - round: 7
+    tasks:
+      - task-07
+  - round: 8
+    tasks:
+      - task-08
 tasks:
   - id: task-01
     title: Add diet plan types and helper functions
@@ -86,6 +92,28 @@ tasks:
       - components/DietPlanCreator.tsx
     depends_on:
       - task-05
+    agent: false
+    test: npm run build
+    done_when: npm run build
+  - id: task-07
+    title: Add Instagram diet plan sharing helpers
+    skill: build
+    files:
+      - types.ts
+      - utils/dietPlan.ts
+      - tests/dietPlan.test.mjs
+    depends_on:
+      - task-06
+    agent: false
+    test: node --experimental-strip-types --test tests/dietPlan.test.mjs
+    done_when: node --experimental-strip-types --test tests/dietPlan.test.mjs
+  - id: task-08
+    title: Add Instagram sharing workflow to diet plan creator
+    skill: build
+    files:
+      - components/DietPlanCreator.tsx
+    depends_on:
+      - task-07
     agent: false
     test: npm run build
     done_when: npm run build

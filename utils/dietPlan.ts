@@ -205,6 +205,7 @@ export const createEmptyDietPlan = (): DietPlan => ({
   patient: {
     name: '',
     phone: '',
+    instagramHandle: '',
     age: '',
     goal: '',
     startDate: '',
@@ -313,6 +314,91 @@ export const buildWhatsAppDietPlanUrl = (plan: DietPlan): string => {
   const phone = normalizeWhatsAppNumber(plan.patient.phone);
   const message = encodeURIComponent(formatDietPlanForSharing(plan));
   return `https://wa.me/${phone}?text=${message}`;
+};
+
+export const normalizeInstagramHandle = (value: string): string =>
+  value
+    .trim()
+    .replace(/^@+/, '')
+    .replace(/[^A-Za-z0-9._]/g, '')
+    .slice(0, 30);
+
+export const buildInstagramProfileUrl = (handle: string): string => {
+  const normalizedHandle = normalizeInstagramHandle(handle);
+  return normalizedHandle
+    ? `https://www.instagram.com/${normalizedHandle}/`
+    : 'https://www.instagram.com/direct/inbox/';
+};
+
+export const formatDietPlanForInstagram = (plan: DietPlan): string => {
+  const patientName = plan.patient.name.trim() || 'Patient';
+  const header = [
+    plan.title.trim() || 'Weekly Diet Plan',
+    `Patient: ${patientName}`,
+    plan.patient.age.trim() ? `Age: ${plan.patient.age.trim()}` : '',
+    plan.patient.goal.trim() ? `Goal: ${plan.patient.goal.trim()}` : '',
+    plan.patient.startDate
+      ? `Start Date: ${new Date(plan.patient.startDate).toLocaleDateString('en-IN')}`
+      : '',
+    plan.patient.preferences.trim()
+      ? `Preferences/Restrictions: ${plan.patient.preferences.trim()}`
+      : '',
+  ].filter(Boolean);
+
+  const days = plan.days.map((day) => {
+    const meals = MEAL_SLOTS.map((slot) => {
+      const mealText = day.meals[slot.id].trim() || 'As discussed';
+      return `${slot.label} (${slot.time}): ${mealText}`;
+    });
+
+    return [
+      '',
+      day.label,
+      ...meals,
+      day.note.trim() ? `Note: ${day.note.trim()}` : '',
+    ]
+      .filter(Boolean)
+      .join('\n');
+  });
+
+  const footer = [
+    '',
+    plan.instructions.trim() ? `Instructions: ${plan.instructions.trim()}` : '',
+    `Prepared by: ${plan.dietitianName.trim() || 'Dietitian'}`,
+  ].filter(Boolean);
+
+  return [...header, ...days, ...footer].join('\n');
+};
+
+export const splitTextIntoShareChunks = (
+  text: string,
+  maxLength = 950,
+): string[] => {
+  const cleanText = text.trim();
+
+  if (!cleanText) {
+    return [];
+  }
+
+  const chunks: string[] = [];
+  let remaining = cleanText;
+
+  while (remaining.length > maxLength) {
+    const splitIndex = Math.max(
+      remaining.lastIndexOf('\n\n', maxLength),
+      remaining.lastIndexOf('\n', maxLength),
+      remaining.lastIndexOf(' ', maxLength),
+    );
+    const safeSplitIndex = splitIndex > maxLength * 0.55 ? splitIndex : maxLength;
+    chunks.push(remaining.slice(0, safeSplitIndex).trim());
+    remaining = remaining.slice(safeSplitIndex).trim();
+  }
+
+  if (remaining) {
+    chunks.push(remaining);
+  }
+
+  return chunks;
 };
 
 export const mergeGeneratedDietPlan = (
