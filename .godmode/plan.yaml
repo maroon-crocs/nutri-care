@@ -3,7 +3,7 @@ stack: TypeScript
 commands:
   build: npm run build
   lint: eslint --fix
-  test: node --test tests/dietPlan.test.mjs
+  test: node --experimental-strip-types --test tests/dietPlan.test.mjs
 rounds:
   - round: 1
     tasks:
@@ -24,8 +24,8 @@ tasks:
       - tests/dietPlan.test.mjs
     depends_on: []
     agent: false
-    test: node --test tests/dietPlan.test.mjs
-    done_when: node --test tests/dietPlan.test.mjs
+    test: node --experimental-strip-types --test tests/dietPlan.test.mjs
+    done_when: node --experimental-strip-types --test tests/dietPlan.test.mjs
   - id: task-02
     title: Build the diet plan creator page
     skill: build

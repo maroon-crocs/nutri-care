@@ -48,3 +48,51 @@ export interface MealAnalysisResult {
     fats: string;
   };
 }
+
+export type MealSlotKey = 'breakfast' | 'lunch' | 'eveningSnack' | 'dinner';
+
+export interface MealSlot {
+  id: MealSlotKey;
+  label: string;
+  time: string;
+}
+
+export interface DietPlanDay {
+  id: string;
+  label: string;
+  meals: Record<MealSlotKey, string>;
+  note: string;
+}
+
+export interface DietPlanPatient {
+  name: string;
+  phone: string;
+  age: string;
+  goal: string;
+  startDate: string;
+  preferences: string;
+}
+
+export interface DietPlan {
+  id: string;
+  title: string;
+  dietitianName: string;
+  patient: DietPlanPatient;
+  days: DietPlanDay[];
+  instructions: string;
+  updatedAt: string;
+}
+
+export type DietPlanTemplateId =
+  | 'balancedVegetarian'
+  | 'diabetesFriendly'
+  | 'highProtein';
+
+export interface DietPlanTemplate {
+  id: DietPlanTemplateId;
+  name: string;
+  description: string;
+  defaultGoal: string;
+  instructions: string;
+  meals: Array<Record<MealSlotKey, string>>;
+}
