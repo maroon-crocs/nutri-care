@@ -1,0 +1,553 @@
+import React, { useEffect, useMemo, useState } from 'react';
+import {
+  CalendarDays,
+  Check,
+  Clipboard,
+  Copy,
+  FileText,
+  Phone,
+  Printer,
+  RefreshCcw,
+  Send,
+  UserRound,
+} from 'lucide-react';
+import type { DietPlan, DietPlanTemplateId, MealSlotKey } from '../types';
+import {
+  applyDietPlanTemplate,
+  buildWhatsAppDietPlanUrl,
+  createEmptyDietPlan,
+  DIET_PLAN_STORAGE_KEY,
+  DIET_PLAN_TEMPLATES,
+  formatDietPlanForSharing,
+  MEAL_SLOTS,
+} from '../utils/dietPlan';
+
+type NoticeState = {
+  type: 'success' | 'error';
+  message: string;
+} | null;
+
+const inputClassName =
+  'w-full rounded-lg border border-slate-200 bg-white px-4 py-3 text-sm text-slate-800 outline-none transition focus:border-leaf-500 focus:ring-2 focus:ring-leaf-100';
+
+const labelClassName = 'mb-2 block text-sm font-semibold text-slate-700';
+
+const DietPlanCreator: React.FC = () => {
+  const [plan, setPlan] = useState<DietPlan>(() => createEmptyDietPlan());
+  const [activeDayIndex, setActiveDayIndex] = useState(0);
+  const [selectedTemplateId, setSelectedTemplateId] =
+    useState<DietPlanTemplateId>('balancedVegetarian');
+  const [notice, setNotice] = useState<NoticeState>(null);
+  const [isLoaded, setIsLoaded] = useState(false);
+
+  useEffect(() => {
+    const savedPlan = window.localStorage.getItem(DIET_PLAN_STORAGE_KEY);
+
+    if (savedPlan) {
+      try {
+        setPlan(JSON.parse(savedPlan) as DietPlan);
+      } catch {
+        window.localStorage.removeItem(DIET_PLAN_STORAGE_KEY);
+      }
+    }
+
+    setIsLoaded(true);
+  }, []);
+
+  useEffect(() => {
+    if (!isLoaded) {
+      return;
+    }
+
+    window.localStorage.setItem(
+      DIET_PLAN_STORAGE_KEY,
+      JSON.stringify({ ...plan, updatedAt: new Date().toISOString() }),
+    );
+  }, [isLoaded, plan]);
+
+  const shareText = useMemo(() => formatDietPlanForSharing(plan), [plan]);
+  const activeDay = plan.days[activeDayIndex] ?? plan.days[0];
+
+  const updatePlan = (updater: (current: DietPlan) => DietPlan) => {
+    setPlan((current) => ({
+      ...updater(current),
+      updatedAt: new Date().toISOString(),
+    }));
+  };
+
+  const updatePatientField = (
+    field: keyof DietPlan['patient'],
+    value: string,
+  ) => {
+    updatePlan((current) => ({
+      ...current,
+      patient: {
+        ...current.patient,
+        [field]: value,
+      },
+    }));
+  };
+
+  const updateTopLevelField = (
+    field: 'title' | 'dietitianName' | 'instructions',
+    value: string,
+  ) => {
+    updatePlan((current) => ({
+      ...current,
+      [field]: value,
+    }));
+  };
+
+  const updateMeal = (
+    dayIndex: number,
+    slotId: MealSlotKey,
+    value: string,
+  ) => {
+    updatePlan((current) => ({
+      ...current,
+      days: current.days.map((day, index) =>
+        index === dayIndex
+          ? {
+              ...day,
+              meals: {
+                ...day.meals,
+                [slotId]: value,
+              },
+            }
+          : day,
+      ),
+    }));
+  };
+
+  const updateDayNote = (dayIndex: number, value: string) => {
+    updatePlan((current) => ({
+      ...current,
+      days: current.days.map((day, index) =>
+        index === dayIndex ? { ...day, note: value } : day,
+      ),
+    }));
+  };
+
+  const handleApplyTemplate = () => {
+    updatePlan((current) => applyDietPlanTemplate(current, selectedTemplateId));
+    setNotice({ type: 'success', message: 'Template applied to the week.' });
+  };
+
+  const copyPreviousDay = () => {
+    if (activeDayIndex === 0) {
+      setNotice({ type: 'error', message: 'Monday has no previous day.' });
+      return;
+    }
+
+    updatePlan((current) => ({
+      ...current,
+      days: current.days.map((day, index) =>
+        index === activeDayIndex
+          ? {
+              ...day,
+              meals: { ...current.days[activeDayIndex - 1].meals },
+              note: current.days[activeDayIndex - 1].note,
+            }
+          : day,
+      ),
+    }));
+    setNotice({ type: 'success', message: 'Previous day copied.' });
+  };
+
+  const copyMondayToWeek = () => {
+    updatePlan((current) => {
+      const monday = current.days[0];
+
+      return {
+        ...current,
+        days: current.days.map((day, index) =>
+          index === 0
+            ? day
+            : {
+                ...day,
+                meals: { ...monday.meals },
+                note: monday.note,
+              },
+        ),
+      };
+    });
+    setNotice({ type: 'success', message: 'Monday copied to the week.' });
+  };
+
+  const resetDraft = () => {
+    const freshPlan = createEmptyDietPlan();
+    setPlan(freshPlan);
+    setActiveDayIndex(0);
+    window.localStorage.removeItem(DIET_PLAN_STORAGE_KEY);
+    setNotice({ type: 'success', message: 'Draft cleared.' });
+  };
+
+  const copyPlan = async () => {
+    try {
+      await navigator.clipboard.writeText(shareText);
+      setNotice({ type: 'success', message: 'Diet plan copied.' });
+    } catch {
+      setNotice({
+        type: 'error',
+        message: 'Copy failed. Select the preview text and copy it manually.',
+      });
+    }
+  };
+
+  const sendToWhatsApp = () => {
+    if (!plan.patient.phone.trim()) {
+      setNotice({
+        type: 'error',
+        message: 'Add patient phone number before sending on WhatsApp.',
+      });
+      return;
+    }
+
+    window.open(buildWhatsAppDietPlanUrl(plan), '_blank', 'noopener,noreferrer');
+  };
+
+  const patientSummary = [
+    plan.patient.name.trim() || 'New patient',
+    plan.patient.goal.trim() || 'Weekly nutrition plan',
+  ].join(' - ');
+
+  return (
+    <main className="min-h-screen bg-slate-50 pt-24 text-slate-900 print:bg-white print:pt-0">
+      <section className="border-b border-slate-200 bg-white print:hidden">
+        <div className="container mx-auto px-6 py-8">
+          <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
+            <div className="max-w-3xl">
+              <p className="mb-3 text-sm font-semibold uppercase tracking-[0.18em] text-leaf-600">
+                Diet plan workspace
+              </p>
+              <h1 className="font-serif text-4xl font-bold text-slate-950 md:text-5xl">
+                Create Weekly Diet Plan
+              </h1>
+              <p className="mt-4 text-base leading-relaxed text-slate-600">
+                Build a complete seven-day plan with four meals per day, then
+                copy, print, or send it to the patient on WhatsApp.
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-3">
+              <button
+                type="button"
+                onClick={copyPlan}
+                className="inline-flex items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700 transition hover:border-leaf-300 hover:text-leaf-700"
+              >
+                <Clipboard size={18} />
+                Copy Plan
+              </button>
+              <button
+                type="button"
+                onClick={() => window.print()}
+                className="inline-flex items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700 transition hover:border-leaf-300 hover:text-leaf-700"
+              >
+                <Printer size={18} />
+                Print
+              </button>
+              <button
+                type="button"
+                onClick={sendToWhatsApp}
+                className="inline-flex items-center justify-center gap-2 rounded-lg bg-leaf-600 px-4 py-3 text-sm font-semibold text-white shadow-lg shadow-leaf-100 transition hover:bg-leaf-700"
+              >
+                <Send size={18} />
+                Send WhatsApp
+              </button>
+            </div>
+          </div>
+
+          {notice && (
+            <div
+              className={`mt-6 flex items-center gap-3 rounded-lg border px-4 py-3 text-sm font-medium ${
+                notice.type === 'success'
+                  ? 'border-leaf-200 bg-leaf-50 text-leaf-800'
+                  : 'border-red-200 bg-red-50 text-red-700'
+              }`}
+            >
+              {notice.type === 'success' ? <Check size={18} /> : <FileText size={18} />}
+              {notice.message}
+            </div>
+          )}
+        </div>
+      </section>
+
+      <section className="container mx-auto grid gap-6 px-6 py-8 lg:grid-cols-[minmax(0,1fr)_380px] print:block print:px-0 print:py-0">
+        <div className="space-y-6 print:hidden">
+          <div className="rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
+            <div className="mb-6 flex items-center gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-leaf-50 text-leaf-700">
+                <UserRound size={20} />
+              </div>
+              <div>
+                <h2 className="text-lg font-bold text-slate-900">
+                  Patient Details
+                </h2>
+                <p className="text-sm text-slate-500">{patientSummary}</p>
+              </div>
+            </div>
+
+            <div className="grid gap-5 md:grid-cols-2">
+              <label>
+                <span className={labelClassName}>Plan Title</span>
+                <input
+                  value={plan.title}
+                  onChange={(event) =>
+                    updateTopLevelField('title', event.target.value)
+                  }
+                  className={inputClassName}
+                  placeholder="Weekly Diet Plan"
+                />
+              </label>
+              <label>
+                <span className={labelClassName}>Dietitian Name</span>
+                <input
+                  value={plan.dietitianName}
+                  onChange={(event) =>
+                    updateTopLevelField('dietitianName', event.target.value)
+                  }
+                  className={inputClassName}
+                  placeholder="Dietitian Iram"
+                />
+              </label>
+              <label>
+                <span className={labelClassName}>Patient Name</span>
+                <input
+                  value={plan.patient.name}
+                  onChange={(event) =>
+                    updatePatientField('name', event.target.value)
+                  }
+                  className={inputClassName}
+                  placeholder="Patient full name"
+                />
+              </label>
+              <label>
+                <span className={labelClassName}>WhatsApp Number</span>
+                <div className="relative">
+                  <Phone
+                    size={18}
+                    className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-slate-400"
+                  />
+                  <input
+                    value={plan.patient.phone}
+                    onChange={(event) =>
+                      updatePatientField('phone', event.target.value)
+                    }
+                    className={`${inputClassName} pl-11`}
+                    placeholder="+91 98765 43210"
+                  />
+                </div>
+              </label>
+              <label>
+                <span className={labelClassName}>Age</span>
+                <input
+                  value={plan.patient.age}
+                  onChange={(event) =>
+                    updatePatientField('age', event.target.value)
+                  }
+                  className={inputClassName}
+                  placeholder="32"
+                />
+              </label>
+              <label>
+                <span className={labelClassName}>Start Date</span>
+                <div className="relative">
+                  <CalendarDays
+                    size={18}
+                    className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-slate-400"
+                  />
+                  <input
+                    type="date"
+                    value={plan.patient.startDate}
+                    onChange={(event) =>
+                      updatePatientField('startDate', event.target.value)
+                    }
+                    className={`${inputClassName} pl-11`}
+                  />
+                </div>
+              </label>
+              <label className="md:col-span-2">
+                <span className={labelClassName}>Goal</span>
+                <input
+                  value={plan.patient.goal}
+                  onChange={(event) =>
+                    updatePatientField('goal', event.target.value)
+                  }
+                  className={inputClassName}
+                  placeholder="Weight loss, diabetes support, muscle gain"
+                />
+              </label>
+              <label className="md:col-span-2">
+                <span className={labelClassName}>
+                  Preferences or Restrictions
+                </span>
+                <textarea
+                  rows={3}
+                  value={plan.patient.preferences}
+                  onChange={(event) =>
+                    updatePatientField('preferences', event.target.value)
+                  }
+                  className={inputClassName}
+                  placeholder="Vegetarian, lactose intolerance, thyroid, food dislikes"
+                />
+              </label>
+            </div>
+          </div>
+
+          <div className="rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
+            <div className="mb-6 flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
+              <div>
+                <h2 className="text-lg font-bold text-slate-900">
+                  Weekly Meals
+                </h2>
+                <p className="text-sm text-slate-500">
+                  {activeDay.label} has {MEAL_SLOTS.length} meal slots.
+                </p>
+              </div>
+              <div className="flex flex-wrap gap-3">
+                <select
+                  value={selectedTemplateId}
+                  onChange={(event) =>
+                    setSelectedTemplateId(event.target.value as DietPlanTemplateId)
+                  }
+                  className="min-h-11 rounded-lg border border-slate-200 bg-white px-3 text-sm font-medium text-slate-700 outline-none focus:border-leaf-500 focus:ring-2 focus:ring-leaf-100"
+                >
+                  {DIET_PLAN_TEMPLATES.map((template) => (
+                    <option key={template.id} value={template.id}>
+                      {template.name}
+                    </option>
+                  ))}
+                </select>
+                <button
+                  type="button"
+                  onClick={handleApplyTemplate}
+                  className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-slate-900 px-4 text-sm font-semibold text-white transition hover:bg-slate-800"
+                >
+                  <FileText size={17} />
+                  Apply
+                </button>
+                <button
+                  type="button"
+                  onClick={copyPreviousDay}
+                  className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg border border-slate-200 px-4 text-sm font-semibold text-slate-700 transition hover:border-leaf-300 hover:text-leaf-700"
+                >
+                  <Copy size={17} />
+                  Previous
+                </button>
+                <button
+                  type="button"
+                  onClick={copyMondayToWeek}
+                  className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg border border-slate-200 px-4 text-sm font-semibold text-slate-700 transition hover:border-leaf-300 hover:text-leaf-700"
+                >
+                  <Copy size={17} />
+                  Monday to Week
+                </button>
+              </div>
+            </div>
+
+            <div className="mb-6 grid grid-cols-2 gap-2 sm:grid-cols-4 xl:grid-cols-7">
+              {plan.days.map((day, index) => (
+                <button
+                  key={day.id}
+                  type="button"
+                  onClick={() => setActiveDayIndex(index)}
+                  className={`min-h-12 rounded-lg border px-3 text-sm font-semibold transition ${
+                    index === activeDayIndex
+                      ? 'border-leaf-500 bg-leaf-50 text-leaf-800'
+                      : 'border-slate-200 bg-white text-slate-600 hover:border-leaf-200'
+                  }`}
+                >
+                  {day.label.slice(0, 3)}
+                </button>
+              ))}
+            </div>
+
+            <div className="grid gap-5 md:grid-cols-2">
+              {MEAL_SLOTS.map((slot) => (
+                <label key={slot.id}>
+                  <span className={labelClassName}>
+                    {slot.label} <span className="text-slate-400">({slot.time})</span>
+                  </span>
+                  <textarea
+                    rows={4}
+                    value={activeDay.meals[slot.id]}
+                    onChange={(event) =>
+                      updateMeal(activeDayIndex, slot.id, event.target.value)
+                    }
+                    className={inputClassName}
+                    placeholder={`${slot.label} items, portions, and swaps`}
+                  />
+                </label>
+              ))}
+              <label className="md:col-span-2">
+                <span className={labelClassName}>Day Note</span>
+                <textarea
+                  rows={3}
+                  value={activeDay.note}
+                  onChange={(event) =>
+                    updateDayNote(activeDayIndex, event.target.value)
+                  }
+                  className={inputClassName}
+                  placeholder="Hydration, walk, supplement timing, or follow-up note"
+                />
+              </label>
+            </div>
+          </div>
+
+          <div className="rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
+            <div className="mb-4 flex items-center justify-between gap-4">
+              <h2 className="text-lg font-bold text-slate-900">
+                Final Instructions
+              </h2>
+              <button
+                type="button"
+                onClick={resetDraft}
+                className="inline-flex items-center gap-2 rounded-lg border border-red-200 px-3 py-2 text-sm font-semibold text-red-600 transition hover:bg-red-50"
+              >
+                <RefreshCcw size={16} />
+                Clear Draft
+              </button>
+            </div>
+            <textarea
+              rows={4}
+              value={plan.instructions}
+              onChange={(event) =>
+                updateTopLevelField('instructions', event.target.value)
+              }
+              className={inputClassName}
+              placeholder="Water intake, oil limits, follow-up reminders, and special notes"
+            />
+          </div>
+        </div>
+
+        <aside className="lg:sticky lg:top-28 lg:self-start print:static">
+          <div className="rounded-lg border border-slate-200 bg-white p-6 shadow-sm print:border-0 print:p-0 print:shadow-none">
+            <div className="mb-5 flex items-center justify-between gap-4 print:hidden">
+              <div>
+                <h2 className="text-lg font-bold text-slate-900">
+                  Patient Preview
+                </h2>
+                <p className="text-sm text-slate-500">
+                  {shareText.length.toLocaleString()} characters
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={copyPlan}
+                className="inline-flex h-10 w-10 items-center justify-center rounded-lg border border-slate-200 text-slate-600 transition hover:border-leaf-300 hover:text-leaf-700"
+                aria-label="Copy preview"
+                title="Copy preview"
+              >
+                <Clipboard size={18} />
+              </button>
+            </div>
+            <pre className="max-h-[calc(100vh-220px)] overflow-auto whitespace-pre-wrap rounded-lg bg-slate-950 p-5 font-sans text-sm leading-6 text-slate-100 print:max-h-none print:overflow-visible print:bg-white print:p-0 print:text-slate-900">
+              {shareText}
+            </pre>
+          </div>
+        </aside>
+      </section>
+    </main>
+  );
+};
+
+export default DietPlanCreator;
