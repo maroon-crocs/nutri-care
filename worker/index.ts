@@ -23,8 +23,17 @@ interface DietPlanDay {
 interface DietPlanPatient {
   name: string;
   phone: string;
+  instagramHandle?: string;
   age: string;
+  height: string;
+  weight: string;
+  dietType: string;
+  allergies: string;
+  healthIssues: string;
   goal: string;
+  workoutStatus: string;
+  workoutType: string;
+  medicinesSupplements: string;
   startDate: string;
   preferences: string;
 }
@@ -242,11 +251,20 @@ async function generateDietPlan(payload: GeminiRequestMap['generateDietPlan'], e
 
   const patient = plan.patient;
   const patientContext = {
+    patientName: clip(patient.name) || 'Not provided',
     age: clip(patient.age),
+    height: clip(patient.height),
+    weight: clip(patient.weight),
+    dietType: clip(patient.dietType),
     goal: clip(patient.goal),
-    preferencesAndRestrictions: clip(patient.preferences, 900),
+    allergies: clip(patient.allergies, 400) || 'None reported',
+    healthIssues: clip(patient.healthIssues, 700) || 'None reported',
+    workoutStatus: clip(patient.workoutStatus) || 'Not provided',
+    workoutType: clip(patient.workoutType, 300) || 'Not provided',
+    medicinesSupplements:
+      clip(patient.medicinesSupplements, 700) || 'None reported',
+    foodNotes: clip(patient.preferences, 900) || 'None noted',
     startDate: clip(patient.startDate),
-    patientName: clip(patient.name),
     currentPlanTitle: clip(plan.title),
     dietitianName: clip(plan.dietitianName),
   };
@@ -260,8 +278,14 @@ Requirements:
 - Return exactly 7 days in this order: Monday, Tuesday, Wednesday, Thursday, Friday, Saturday, Sunday.
 - Each day must have exactly these meal keys: earlyMorning, breakfast, midMorning, lunch, eveningSnack, dinner.
 - Each meal should include practical foods and portion guidance in one concise sentence.
-- Match the stated age, goal, preferences, and restrictions.
-- Do not include restricted foods.
+- Match the stated age, height, weight, goal, diet type, allergies, health issues, workout details, medicines/supplements, and food notes.
+- Diet type is a hard rule:
+  - Veg: no egg, meat, chicken, or fish.
+  - Eggetarian: eggs allowed, but no meat, chicken, or fish.
+  - Non-veg: non-vegetarian foods are allowed, but only if they fit the goal and restrictions.
+- Do not include allergen foods or foods that clearly conflict with the health issues, medicines, supplements, or food notes.
+- Use workout status and workout type to adjust protein, pre-workout, post-workout, and hydration suggestions when appropriate.
+- If any key medical detail seems risky, incomplete, or needs doctor confirmation, keep the meal plan conservative and add a review note instead of making assumptions.
 - Include variety across the week.
 - Add reviewNotes for anything the dietitian should verify before sending.
 

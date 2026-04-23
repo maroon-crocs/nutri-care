@@ -41,6 +41,15 @@ rounds:
   - round: 12
     tasks:
       - task-12
+  - round: 13
+    tasks:
+      - task-13
+  - round: 14
+    tasks:
+      - task-14
+  - round: 15
+    tasks:
+      - task-15
 tasks:
   - id: task-01
     title: Add diet plan types and helper functions
@@ -174,6 +183,40 @@ tasks:
       - src/index.css
     depends_on:
       - task-11
+    agent: false
+    test: npm run build
+    done_when: npm run build
+  - id: task-13
+    title: Extend diet plan patient intake fields and sharing helpers
+    skill: build
+    files:
+      - types.ts
+      - utils/dietPlan.ts
+      - utils/dietPlanPdf.ts
+      - tests/dietPlan.test.mjs
+    depends_on:
+      - task-12
+    agent: false
+    test: node --experimental-strip-types --test tests/dietPlan.test.mjs
+    done_when: node --experimental-strip-types --test tests/dietPlan.test.mjs
+  - id: task-14
+    title: Update AI diet plan prompt with extended intake context
+    skill: build
+    files:
+      - worker/index.ts
+      - services/geminiService.ts
+    depends_on:
+      - task-13
+    agent: false
+    test: npx wrangler deploy --dry-run
+    done_when: npx wrangler deploy --dry-run
+  - id: task-15
+    title: Add extended intake fields to diet plan creator form
+    skill: build
+    files:
+      - components/DietPlanCreator.tsx
+    depends_on:
+      - task-14
     agent: false
     test: npm run build
     done_when: npm run build

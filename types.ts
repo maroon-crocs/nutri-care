@@ -75,7 +75,15 @@ export interface DietPlanPatient {
   phone: string;
   instagramHandle: string;
   age: string;
+  height: string;
+  weight: string;
+  dietType: string;
+  allergies: string;
+  healthIssues: string;
   goal: string;
+  workoutStatus: string;
+  workoutType: string;
+  medicinesSupplements: string;
   startDate: string;
   preferences: string;
 }

@@ -282,7 +282,15 @@ export const createEmptyDietPlan = (): DietPlan => ({
     phone: '',
     instagramHandle: '',
     age: '',
+    height: '',
+    weight: '',
+    dietType: '',
+    allergies: '',
+    healthIssues: '',
     goal: '',
+    workoutStatus: '',
+    workoutType: '',
+    medicinesSupplements: '',
     startDate: '',
     preferences: '',
   },
@@ -373,18 +381,59 @@ export const applyDietPlanTemplate = (
   };
 };
 
+export const getWorkoutSummary = (
+  patient: DietPlan['patient'],
+): string => {
+  const status = patient.workoutStatus.trim();
+  const type = patient.workoutType.trim();
+
+  if (!status && !type) {
+    return '';
+  }
+
+  if (!status) {
+    return type;
+  }
+
+  if (status.toLowerCase() === 'no') {
+    return 'No';
+  }
+
+  if (status.toLowerCase() === 'yes') {
+    return type ? `Yes - ${type}` : 'Yes';
+  }
+
+  return type ? `${status} - ${type}` : status;
+};
+
 export const formatDietPlanForSharing = (plan: DietPlan): string => {
   const patientName = plan.patient.name.trim() || 'Patient';
+  const workoutSummary = getWorkoutSummary(plan.patient);
   const header = [
     `*${plan.title.trim() || 'Weekly Diet Plan'}*`,
     `*Patient:* ${patientName}`,
     plan.patient.age.trim() ? `*Age:* ${plan.patient.age.trim()}` : '',
+    plan.patient.height.trim() ? `*Height:* ${plan.patient.height.trim()}` : '',
+    plan.patient.weight.trim() ? `*Weight:* ${plan.patient.weight.trim()}` : '',
+    plan.patient.dietType.trim()
+      ? `*Diet Type:* ${plan.patient.dietType.trim()}`
+      : '',
     plan.patient.goal.trim() ? `*Goal:* ${plan.patient.goal.trim()}` : '',
+    plan.patient.allergies.trim()
+      ? `*Allergies:* ${plan.patient.allergies.trim()}`
+      : '',
+    plan.patient.healthIssues.trim()
+      ? `*Health Issues:* ${plan.patient.healthIssues.trim()}`
+      : '',
+    workoutSummary ? `*Workout:* ${workoutSummary}` : '',
+    plan.patient.medicinesSupplements.trim()
+      ? `*Medicines/Supplements:* ${plan.patient.medicinesSupplements.trim()}`
+      : '',
     plan.patient.startDate
       ? `*Start Date:* ${new Date(plan.patient.startDate).toLocaleDateString('en-IN')}`
       : '',
     plan.patient.preferences.trim()
-      ? `*Preferences/Restrictions:* ${plan.patient.preferences.trim()}`
+      ? `*Food Notes:* ${plan.patient.preferences.trim()}`
       : '',
   ].filter(Boolean);
 
@@ -456,16 +505,32 @@ export const buildInstagramProfileUrl = (handle: string): string => {
 
 export const formatDietPlanForInstagram = (plan: DietPlan): string => {
   const patientName = plan.patient.name.trim() || 'Patient';
+  const workoutSummary = getWorkoutSummary(plan.patient);
   const header = [
     plan.title.trim() || 'Weekly Diet Plan',
     `Patient: ${patientName}`,
     plan.patient.age.trim() ? `Age: ${plan.patient.age.trim()}` : '',
+    plan.patient.height.trim() ? `Height: ${plan.patient.height.trim()}` : '',
+    plan.patient.weight.trim() ? `Weight: ${plan.patient.weight.trim()}` : '',
+    plan.patient.dietType.trim()
+      ? `Diet Type: ${plan.patient.dietType.trim()}`
+      : '',
     plan.patient.goal.trim() ? `Goal: ${plan.patient.goal.trim()}` : '',
+    plan.patient.allergies.trim()
+      ? `Allergies: ${plan.patient.allergies.trim()}`
+      : '',
+    plan.patient.healthIssues.trim()
+      ? `Health Issues: ${plan.patient.healthIssues.trim()}`
+      : '',
+    workoutSummary ? `Workout: ${workoutSummary}` : '',
+    plan.patient.medicinesSupplements.trim()
+      ? `Medicines/Supplements: ${plan.patient.medicinesSupplements.trim()}`
+      : '',
     plan.patient.startDate
       ? `Start Date: ${new Date(plan.patient.startDate).toLocaleDateString('en-IN')}`
       : '',
     plan.patient.preferences.trim()
-      ? `Preferences/Restrictions: ${plan.patient.preferences.trim()}`
+      ? `Food Notes: ${plan.patient.preferences.trim()}`
       : '',
   ].filter(Boolean);
 

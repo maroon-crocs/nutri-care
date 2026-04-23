@@ -17,6 +17,7 @@ import {
 } from '../utils/dietPlan.ts';
 import {
   buildDietPlanPdfFileName,
+  buildDietPlanPdfMetaLines,
   buildDietPlanPdfTableData,
 } from '../utils/dietPlanPdf.ts';
 
@@ -25,6 +26,10 @@ test('createEmptyDietPlan creates seven days with printable meal slots', () => {
 
   assert.equal(plan.days.length, 7);
   assert.equal(MEAL_SLOTS.length, 6);
+  assert.equal(plan.patient.height, '');
+  assert.equal(plan.patient.weight, '');
+  assert.equal(plan.patient.dietType, '');
+  assert.equal(plan.patient.workoutStatus, '');
 
   for (const day of plan.days) {
     assert.deepEqual(Object.keys(day.meals).sort(), [
@@ -63,6 +68,9 @@ test('normalizeDietPlan upgrades older saved drafts to printable meal slots', ()
   assert.equal(normalized.title, 'Old Draft');
   assert.equal(normalized.patient.name, 'Aarav');
   assert.equal(normalized.patient.instagramHandle, '');
+  assert.equal(normalized.patient.height, '');
+  assert.equal(normalized.patient.allergies, '');
+  assert.equal(normalized.patient.medicinesSupplements, '');
   assert.equal(normalized.days[0].meals.breakfast, 'Poha');
   assert.equal(normalized.days[0].meals.earlyMorning, '');
   assert.equal(normalized.days[0].meals.midMorning, '');
@@ -82,11 +90,21 @@ test('applyDietPlanTemplate fills meals and keeps patient details', () => {
 test('formatDietPlanForSharing creates a patient-facing weekly message', () => {
   const plan = applyDietPlanTemplate(createEmptyDietPlan(), 'diabetesFriendly');
   plan.patient.name = 'Rahul';
+  plan.patient.age = '34';
+  plan.patient.height = '170 cm';
+  plan.patient.weight = '76 kg';
+  plan.patient.dietType = 'Veg';
   plan.patient.goal = 'Blood sugar control';
+  plan.patient.healthIssues = 'Diabetes';
+  plan.patient.workoutStatus = 'Yes';
+  plan.patient.workoutType = 'Brisk walking';
 
   const message = formatDietPlanForSharing(plan);
 
   assert.match(message, /\*Patient:\* Rahul/);
+  assert.match(message, /\*Height:\* 170 cm/);
+  assert.match(message, /\*Diet Type:\* Veg/);
+  assert.match(message, /\*Workout:\* Yes - Brisk walking/);
   assert.match(message, /\*Monday\*/);
   assert.match(message, /Breakfast \(8:00 AM\):/);
   assert.match(message, /\*Prepared by:\*/);
@@ -113,6 +131,8 @@ test('Instagram helpers prepare profile URLs and plain text diet plans', () => {
   const plan = createEmptyDietPlan();
   plan.patient.name = 'Sana';
   plan.patient.instagramHandle = '@sana.health';
+  plan.patient.dietType = 'Eggetarian';
+  plan.patient.workoutStatus = 'No';
   plan.days[0].meals.breakfast = 'Vegetable poha with curd';
 
   const text = formatDietPlanForInstagram(plan);
@@ -123,6 +143,8 @@ test('Instagram helpers prepare profile URLs and plain text diet plans', () => {
     'https://www.instagram.com/sana.health/',
   );
   assert.match(text, /Patient: Sana/);
+  assert.match(text, /Diet Type: Eggetarian/);
+  assert.match(text, /Workout: No/);
   assert.match(text, /Breakfast \(8:00 AM\): Vegetable poha with curd/);
   assert.doesNotMatch(text, /\*Patient:\*/);
 });
@@ -185,6 +207,30 @@ test('buildDietPlanPdfTableData creates table header and day rows', () => {
   assert.equal(table.body[0][0], 'Monday');
   assert.equal(table.body[0][2], 'Vegetable poha');
   assert.equal(table.body[0][4], 'Dal roti sabzi');
+});
+
+test('buildDietPlanPdfMetaLines includes extended intake details', () => {
+  const plan = createEmptyDietPlan();
+  plan.patient.name = 'Nisha';
+  plan.patient.age = '29';
+  plan.patient.height = '162 cm';
+  plan.patient.weight = '59 kg';
+  plan.patient.dietType = 'Veg';
+  plan.patient.goal = 'Fat loss';
+  plan.patient.healthIssues = 'PCOS';
+  plan.patient.workoutStatus = 'Yes';
+  plan.patient.workoutType = 'Strength training';
+  plan.patient.medicinesSupplements = 'Vitamin D';
+  plan.patient.preferences = 'No mushrooms';
+
+  const lines = buildDietPlanPdfMetaLines(plan);
+
+  assert.match(lines[0], /Patient: Nisha/);
+  assert.match(lines[0], /Height: 162 cm/);
+  assert.match(lines[0], /Diet Type: Veg/);
+  assert.match(lines[1], /Workout: Yes - Strength training/);
+  assert.match(lines[2], /Health Issues: PCOS/);
+  assert.match(lines[3], /Food Notes: No mushrooms/);
 });
 
 test('buildDietPlanPdfFileName creates a safe downloadable file name', () => {

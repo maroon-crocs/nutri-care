@@ -1,7 +1,7 @@
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import type { DietPlan } from '../types';
-import { MEAL_SLOTS } from './dietPlan.ts';
+import { getWorkoutSummary, MEAL_SLOTS } from './dietPlan.ts';
 
 type PdfTableData = {
   body: string[][];
@@ -9,7 +9,9 @@ type PdfTableData = {
 };
 
 const PAGE_MARGIN = 10;
-const TABLE_START_Y = 34;
+const TITLE_Y = 14;
+const META_START_Y = 21;
+const META_LINE_HEIGHT = 5;
 
 export const buildDietPlanPdfFileName = (plan: DietPlan): string => {
   const patientName = plan.patient.name.trim() || 'patient';
@@ -29,6 +31,54 @@ export const buildDietPlanPdfTableData = (plan: DietPlan): PdfTableData => ({
   ]),
 });
 
+export const buildDietPlanPdfMetaLines = (plan: DietPlan): string[] => {
+  const workoutSummary = getWorkoutSummary(plan.patient);
+
+  return [
+    [
+      `Patient: ${plan.patient.name.trim() || 'Patient'}`,
+      plan.patient.age.trim() ? `Age: ${plan.patient.age.trim()}` : '',
+      plan.patient.height.trim() ? `Height: ${plan.patient.height.trim()}` : '',
+      plan.patient.weight.trim() ? `Weight: ${plan.patient.weight.trim()}` : '',
+      plan.patient.dietType.trim()
+        ? `Diet Type: ${plan.patient.dietType.trim()}`
+        : '',
+    ]
+      .filter(Boolean)
+      .join(' | '),
+    [
+      plan.patient.goal.trim() ? `Goal: ${plan.patient.goal.trim()}` : '',
+      workoutSummary ? `Workout: ${workoutSummary}` : '',
+      plan.patient.startDate
+        ? `Start Date: ${new Date(plan.patient.startDate).toLocaleDateString('en-IN')}`
+        : '',
+      `Prepared by: ${plan.dietitianName.trim() || 'Dietitian'}`,
+    ]
+      .filter(Boolean)
+      .join(' | '),
+    [
+      plan.patient.allergies.trim()
+        ? `Allergies: ${plan.patient.allergies.trim()}`
+        : '',
+      plan.patient.healthIssues.trim()
+        ? `Health Issues: ${plan.patient.healthIssues.trim()}`
+        : '',
+    ]
+      .filter(Boolean)
+      .join(' | '),
+    [
+      plan.patient.medicinesSupplements.trim()
+        ? `Medicines/Supplements: ${plan.patient.medicinesSupplements.trim()}`
+        : '',
+      plan.patient.preferences.trim()
+        ? `Food Notes: ${plan.patient.preferences.trim()}`
+        : '',
+    ]
+      .filter(Boolean)
+      .join(' | '),
+  ].filter(Boolean);
+};
+
 export const createDietPlanPdf = (plan: DietPlan): jsPDF => {
   const doc = new jsPDF({
     compress: true,
@@ -43,41 +93,21 @@ export const createDietPlanPdf = (plan: DietPlan): jsPDF => {
 
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(17);
-  doc.text(plan.title.trim() || 'Weekly Diet Plan', pageWidth / 2, 14, {
+  doc.text(plan.title.trim() || 'Weekly Diet Plan', pageWidth / 2, TITLE_Y, {
     align: 'center',
   });
 
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(9.5);
+  const metaLines = buildDietPlanPdfMetaLines(plan).flatMap((line) =>
+    doc.splitTextToSize(line, pageWidth - PAGE_MARGIN * 2),
+  );
 
-  const patientDetails = [
-    `Patient: ${plan.patient.name.trim() || 'Patient'}`,
-    plan.patient.age.trim() ? `Age: ${plan.patient.age.trim()}` : '',
-    plan.patient.goal.trim() ? `Goal: ${plan.patient.goal.trim()}` : '',
-  ]
-    .filter(Boolean)
-    .join(' | ');
+  metaLines.forEach((line, index) => {
+    doc.text(line, PAGE_MARGIN, META_START_Y + index * META_LINE_HEIGHT);
+  });
 
-  doc.text(patientDetails, PAGE_MARGIN, 21);
-
-  const secondaryDetails = [
-    plan.patient.startDate
-      ? `Start Date: ${new Date(plan.patient.startDate).toLocaleDateString('en-IN')}`
-      : '',
-    `Prepared by: ${plan.dietitianName.trim() || 'Dietitian'}`,
-  ]
-    .filter(Boolean)
-    .join(' | ');
-
-  doc.text(secondaryDetails, PAGE_MARGIN, 27);
-
-  if (plan.patient.preferences.trim()) {
-    const preferencesText = doc.splitTextToSize(
-      `Preferences/Restrictions: ${plan.patient.preferences.trim()}`,
-      pageWidth - PAGE_MARGIN * 2,
-    );
-    doc.text(preferencesText, PAGE_MARGIN, TABLE_START_Y - 2);
-  }
+  const tableStartY = META_START_Y + metaLines.length * META_LINE_HEIGHT + 2;
 
   autoTable(doc, {
     body,
@@ -85,7 +115,7 @@ export const createDietPlanPdf = (plan: DietPlan): jsPDF => {
     margin: { bottom: 12, left: PAGE_MARGIN, right: PAGE_MARGIN, top: PAGE_MARGIN },
     rowPageBreak: 'auto',
     showHead: 'everyPage',
-    startY: TABLE_START_Y + (plan.patient.preferences.trim() ? 6 : 0),
+    startY: tableStartY,
     styles: {
       cellPadding: 1.8,
       font: 'helvetica',

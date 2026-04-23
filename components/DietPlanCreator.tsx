@@ -25,6 +25,7 @@ import {
   buildInstagramProfileUrl,
   formatDietPlanForInstagram,
   formatDietPlanForSharing,
+  getWorkoutSummary,
   MEAL_SLOTS,
   mergeGeneratedDietPlan,
   normalizeDietPlan,
@@ -42,6 +43,58 @@ const inputClassName =
   'w-full rounded-lg border border-slate-200 bg-white px-4 py-3 text-sm text-slate-800 outline-none transition focus:border-leaf-500 focus:ring-2 focus:ring-leaf-100';
 
 const labelClassName = 'mb-2 block text-sm font-semibold text-slate-700';
+
+const DIET_TYPE_OPTIONS = ['Veg', 'Eggetarian', 'Non-veg'] as const;
+const WORKOUT_STATUS_OPTIONS = ['Yes', 'No'] as const;
+
+const joinLabels = (values: string[]): string => {
+  if (values.length <= 1) {
+    return values[0] || '';
+  }
+
+  if (values.length === 2) {
+    return `${values[0]} and ${values[1]}`;
+  }
+
+  return `${values.slice(0, -1).join(', ')}, and ${values[values.length - 1]}`;
+};
+
+const getAiMissingFields = (plan: DietPlan): string[] => {
+  const missingFields: string[] = [];
+
+  if (!plan.patient.age.trim()) {
+    missingFields.push('age');
+  }
+
+  if (!plan.patient.height.trim()) {
+    missingFields.push('height');
+  }
+
+  if (!plan.patient.weight.trim()) {
+    missingFields.push('weight');
+  }
+
+  if (!plan.patient.dietType.trim()) {
+    missingFields.push('diet type');
+  }
+
+  if (!plan.patient.goal.trim()) {
+    missingFields.push('goal');
+  }
+
+  if (!plan.patient.workoutStatus.trim()) {
+    missingFields.push('workout status');
+  }
+
+  if (
+    plan.patient.workoutStatus.trim().toLowerCase() === 'yes' &&
+    !plan.patient.workoutType.trim()
+  ) {
+    missingFields.push('workout type');
+  }
+
+  return missingFields;
+};
 
 const DietPlanCreator: React.FC = () => {
   const [plan, setPlan] = useState<DietPlan>(() => createEmptyDietPlan());
@@ -86,6 +139,13 @@ const DietPlanCreator: React.FC = () => {
     [instagramText],
   );
   const activeDay = plan.days[activeDayIndex] ?? plan.days[0];
+  const workoutSummary = getWorkoutSummary(plan.patient);
+  const healthContextAdded = Boolean(
+    plan.patient.allergies.trim() ||
+      plan.patient.healthIssues.trim() ||
+      plan.patient.medicinesSupplements.trim() ||
+      plan.patient.preferences.trim(),
+  );
 
   useEffect(() => {
     if (instagramChunkIndex >= instagramChunks.length) {
@@ -109,6 +169,20 @@ const DietPlanCreator: React.FC = () => {
       patient: {
         ...current.patient,
         [field]: value,
+      },
+    }));
+  };
+
+  const updateWorkoutStatus = (value: string) => {
+    updatePlan((current) => ({
+      ...current,
+      patient: {
+        ...current.patient,
+        workoutStatus: value,
+        workoutType:
+          value.trim().toLowerCase() === 'yes'
+            ? current.patient.workoutType
+            : '',
       },
     }));
   };
@@ -160,10 +234,12 @@ const DietPlanCreator: React.FC = () => {
   };
 
   const generatePlanWithAI = async () => {
-    if (!plan.patient.age.trim() || !plan.patient.goal.trim()) {
+    const missingFields = getAiMissingFields(plan);
+
+    if (missingFields.length > 0) {
       setNotice({
         type: 'error',
-        message: 'Add patient age and goal before generating an AI draft.',
+        message: `Add ${joinLabels(missingFields)} before generating an AI draft.`,
       });
       return;
     }
@@ -334,8 +410,8 @@ const DietPlanCreator: React.FC = () => {
                 Create Weekly Diet Plan
               </h1>
               <p className="mt-4 text-base leading-relaxed text-slate-600">
-                Build a complete seven-day plan with four meals per day, then
-                copy, print, or share it through WhatsApp and Instagram.
+                Build a complete seven-day plan with six daily meal slots, then
+                edit, download, or share it through WhatsApp and Instagram.
               </p>
             </div>
             <div className="flex flex-wrap gap-3">
@@ -482,6 +558,45 @@ const DietPlanCreator: React.FC = () => {
                 />
               </label>
               <label>
+                <span className={labelClassName}>Height</span>
+                <input
+                  value={plan.patient.height}
+                  onChange={(event) =>
+                    updatePatientField('height', event.target.value)
+                  }
+                  className={inputClassName}
+                  placeholder="165 cm"
+                />
+              </label>
+              <label>
+                <span className={labelClassName}>Weight</span>
+                <input
+                  value={plan.patient.weight}
+                  onChange={(event) =>
+                    updatePatientField('weight', event.target.value)
+                  }
+                  className={inputClassName}
+                  placeholder="68 kg"
+                />
+              </label>
+              <label>
+                <span className={labelClassName}>Diet Type</span>
+                <select
+                  value={plan.patient.dietType}
+                  onChange={(event) =>
+                    updatePatientField('dietType', event.target.value)
+                  }
+                  className={inputClassName}
+                >
+                  <option value="">Select diet type</option>
+                  {DIET_TYPE_OPTIONS.map((option) => (
+                    <option key={option} value={option}>
+                      {option}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label>
                 <span className={labelClassName}>Start Date</span>
                 <div className="relative">
                   <CalendarDays
@@ -499,6 +614,30 @@ const DietPlanCreator: React.FC = () => {
                 </div>
               </label>
               <label className="md:col-span-2">
+                <span className={labelClassName}>Allergies</span>
+                <textarea
+                  rows={2}
+                  value={plan.patient.allergies}
+                  onChange={(event) =>
+                    updatePatientField('allergies', event.target.value)
+                  }
+                  className={inputClassName}
+                  placeholder="Peanut allergy, gluten allergy, or None"
+                />
+              </label>
+              <label className="md:col-span-2">
+                <span className={labelClassName}>Health Issues</span>
+                <textarea
+                  rows={2}
+                  value={plan.patient.healthIssues}
+                  onChange={(event) =>
+                    updatePatientField('healthIssues', event.target.value)
+                  }
+                  className={inputClassName}
+                  placeholder="PCOS, thyroid, diabetes, acidity, or None"
+                />
+              </label>
+              <label className="md:col-span-2">
                 <span className={labelClassName}>Goal</span>
                 <input
                   value={plan.patient.goal}
@@ -509,9 +648,51 @@ const DietPlanCreator: React.FC = () => {
                   placeholder="Weight loss, diabetes support, muscle gain"
                 />
               </label>
+              <label>
+                <span className={labelClassName}>Workout</span>
+                <select
+                  value={plan.patient.workoutStatus}
+                  onChange={(event) => updateWorkoutStatus(event.target.value)}
+                  className={inputClassName}
+                >
+                  <option value="">Select workout status</option>
+                  {WORKOUT_STATUS_OPTIONS.map((option) => (
+                    <option key={option} value={option}>
+                      {option}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                <span className={labelClassName}>Workout Type</span>
+                <input
+                  value={plan.patient.workoutType}
+                  onChange={(event) =>
+                    updatePatientField('workoutType', event.target.value)
+                  }
+                  className={`${inputClassName} disabled:bg-slate-100 disabled:text-slate-400`}
+                  placeholder="Walking, strength training, yoga"
+                  disabled={plan.patient.workoutStatus.trim().toLowerCase() !== 'yes'}
+                />
+              </label>
+              <label className="md:col-span-2">
+                <span className={labelClassName}>Medicines / Supplements</span>
+                <textarea
+                  rows={2}
+                  value={plan.patient.medicinesSupplements}
+                  onChange={(event) =>
+                    updatePatientField(
+                      'medicinesSupplements',
+                      event.target.value,
+                    )
+                  }
+                  className={inputClassName}
+                  placeholder="Metformin, thyroid medicine, whey protein, vitamin D, or None"
+                />
+              </label>
               <label className="md:col-span-2">
                 <span className={labelClassName}>
-                  Preferences or Restrictions
+                  Food Preferences / Dislikes / Extra Notes
                 </span>
                 <textarea
                   rows={3}
@@ -520,7 +701,7 @@ const DietPlanCreator: React.FC = () => {
                     updatePatientField('preferences', event.target.value)
                   }
                   className={inputClassName}
-                  placeholder="Vegetarian, lactose intolerance, thyroid, food dislikes"
+                  placeholder="Likes simple home meals, avoids curd at night, no onion at breakfast"
                 />
               </label>
             </div>
@@ -624,7 +805,8 @@ const DietPlanCreator: React.FC = () => {
                       AI Diet Draft
                     </h2>
                     <p className="text-sm text-slate-500">
-                      Uses age, goal, preferences, and restrictions from the
+                      Uses body data, diet type, allergies, health issues,
+                      workout details, medicines, goal, and food notes from the
                       patient details.
                     </p>
                   </div>
@@ -634,11 +816,22 @@ const DietPlanCreator: React.FC = () => {
                     Age: {plan.patient.age.trim() || 'Needed'}
                   </span>
                   <span className="rounded-full bg-slate-100 px-3 py-1 text-slate-600">
+                    Height/Weight:{' '}
+                    {plan.patient.height.trim() && plan.patient.weight.trim()
+                      ? `${plan.patient.height.trim()} / ${plan.patient.weight.trim()}`
+                      : 'Needed'}
+                  </span>
+                  <span className="rounded-full bg-slate-100 px-3 py-1 text-slate-600">
+                    Diet: {plan.patient.dietType.trim() || 'Needed'}
+                  </span>
+                  <span className="rounded-full bg-slate-100 px-3 py-1 text-slate-600">
                     Goal: {plan.patient.goal.trim() || 'Needed'}
                   </span>
                   <span className="rounded-full bg-slate-100 px-3 py-1 text-slate-600">
-                    Restrictions:{' '}
-                    {plan.patient.preferences.trim() ? 'Added' : 'None added'}
+                    Workout: {workoutSummary || 'Needed'}
+                  </span>
+                  <span className="rounded-full bg-slate-100 px-3 py-1 text-slate-600">
+                    Health Context: {healthContextAdded ? 'Added' : 'Not added'}
                   </span>
                 </div>
               </div>
