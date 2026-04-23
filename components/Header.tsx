@@ -1,9 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { Menu, X, Leaf } from 'lucide-react';
 
-const Header: React.FC = () => {
+interface HeaderProps {
+  currentPage?: 'home' | 'diet-plan';
+}
+
+const Header: React.FC<HeaderProps> = ({ currentPage = 'home' }) => {
   const [isScrolled, setIsScrolled] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const isSolid = isScrolled || currentPage === 'diet-plan';
 
   useEffect(() => {
     const handleScroll = () => {
@@ -18,6 +23,7 @@ const Header: React.FC = () => {
     { name: 'BMI Calculator', href: '#bmi' },
     { name: 'Healthy Games', href: '#healthy-games' },
     { name: 'AI Assistant', href: '#ai-assistant' },
+    { name: 'Diet Plan', href: '#/diet-plan' },
     { name: 'Testimonials', href: '#testimonials' },
     { name: 'Contact', href: '#contact' },
   ];
@@ -25,7 +31,7 @@ const Header: React.FC = () => {
   return (
     <header 
       className={`fixed w-full z-50 transition-all duration-300 ${
-        isScrolled ? 'bg-white shadow-md py-3' : 'bg-transparent py-5'
+        isSolid ? 'bg-white shadow-md py-3' : 'bg-transparent py-5'
       }`}
     >
       <div className="container mx-auto px-6 flex justify-between items-center">
@@ -34,29 +40,33 @@ const Header: React.FC = () => {
           <div className="bg-leaf-600 p-2 rounded-full text-white group-hover:bg-leaf-700 transition-colors">
             <Leaf size={24} />
           </div>
-          <span className={`font-serif text-2xl font-bold tracking-tight ${isScrolled ? 'text-slate-800' : 'text-slate-800 lg:text-slate-900'}`}>
+          <span className={`font-serif text-2xl font-bold tracking-tight ${isSolid ? 'text-slate-800' : 'text-slate-800 lg:text-slate-900'}`}>
             NutriGuide
           </span>
         </a>
 
         {/* Desktop Nav */}
-        <nav className="hidden md:flex items-center gap-8">
+        <nav className="hidden md:flex items-center gap-6">
           {navLinks.map((link) => (
             <a 
               key={link.name} 
               href={link.href}
               className={`text-sm font-medium hover:text-leaf-600 transition-colors ${
-                isScrolled ? 'text-slate-600' : 'text-slate-700'
+                currentPage === 'diet-plan' && link.href === '#/diet-plan'
+                  ? 'text-leaf-700'
+                  : isSolid
+                    ? 'text-slate-600'
+                    : 'text-slate-700'
               }`}
             >
               {link.name}
             </a>
           ))}
           <a 
-            href="#contact"
+            href={currentPage === 'diet-plan' ? '#/diet-plan' : '#/diet-plan'}
             className="bg-leaf-600 hover:bg-leaf-700 text-white px-5 py-2.5 rounded-full text-sm font-medium transition-all shadow-lg shadow-leaf-200"
           >
-            Get Started
+            Create Plan
           </a>
         </nav>
 
@@ -76,18 +86,22 @@ const Header: React.FC = () => {
             <a 
               key={link.name} 
               href={link.href}
-              className="text-slate-700 font-medium py-2 border-b border-slate-50 hover:text-leaf-600"
+              className={`text-slate-700 font-medium py-2 border-b border-slate-50 hover:text-leaf-600 ${
+                currentPage === 'diet-plan' && link.href === '#/diet-plan'
+                  ? 'text-leaf-700'
+                  : ''
+              }`}
               onClick={() => setIsMobileMenuOpen(false)}
             >
               {link.name}
             </a>
           ))}
           <a 
-            href="#contact"
+            href="#/diet-plan"
             className="bg-leaf-600 text-white text-center py-3 rounded-xl font-medium mt-2"
             onClick={() => setIsMobileMenuOpen(false)}
           >
-            Get Started
+            Create Plan
           </a>
         </div>
       )}
