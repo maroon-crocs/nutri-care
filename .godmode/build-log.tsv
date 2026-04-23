@@ -2,3 +2,6 @@ round	task_id	agent_time_ms	status	conflicted_file	notes
 1	task-01	0	merged		helper tests passed
 2	task-02	0	merged		production build passed
 3	task-03	0	merged		production build passed
+4	task-04	0	merged		AI draft normalization tests passed
+5	task-05	0	merged		TypeScript build and Worker dry-run passed
+6	task-06	0	merged		production build passed
