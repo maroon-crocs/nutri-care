@@ -15,6 +15,10 @@ import {
   normalizeWhatsAppNumber,
   splitTextIntoShareChunks,
 } from '../utils/dietPlan.ts';
+import {
+  buildDietPlanPdfFileName,
+  buildDietPlanPdfTableData,
+} from '../utils/dietPlanPdf.ts';
 
 test('createEmptyDietPlan creates seven days with printable meal slots', () => {
   const plan = createEmptyDietPlan();
@@ -166,4 +170,26 @@ test('mergeGeneratedDietPlan keeps patient details and normalizes meal slots', (
   assert.equal(merged.days[0].meals.breakfast, 'Moong dal chilla');
   assert.equal(merged.days[0].meals.dinner, 'Existing dinner');
   assert.equal(merged.days[0].note, 'Walk for 20 minutes.');
+});
+
+test('buildDietPlanPdfTableData creates table header and day rows', () => {
+  const plan = createEmptyDietPlan();
+  plan.days[0].meals.breakfast = 'Vegetable poha';
+  plan.days[0].meals.lunch = 'Dal roti sabzi';
+
+  const table = buildDietPlanPdfTableData(plan);
+
+  assert.equal(table.head[0][0], 'Day');
+  assert.equal(table.head[0].length, 7);
+  assert.equal(table.body.length, 7);
+  assert.equal(table.body[0][0], 'Monday');
+  assert.equal(table.body[0][2], 'Vegetable poha');
+  assert.equal(table.body[0][4], 'Dal roti sabzi');
+});
+
+test('buildDietPlanPdfFileName creates a safe downloadable file name', () => {
+  const plan = createEmptyDietPlan();
+  plan.patient.name = 'Mary Jane';
+
+  assert.equal(buildDietPlanPdfFileName(plan), 'mary-jane-diet-plan.pdf');
 });
