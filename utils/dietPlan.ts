@@ -20,20 +20,47 @@ export const WEEK_DAYS = [
 ];
 
 export const MEAL_SLOTS: MealSlot[] = [
+  { id: 'earlyMorning', label: 'Early Morning', time: '6:30 AM' },
   { id: 'breakfast', label: 'Breakfast', time: '8:00 AM' },
+  { id: 'midMorning', label: 'Mid-Morning', time: '11:00 AM' },
   { id: 'lunch', label: 'Lunch', time: '1:00 PM' },
   { id: 'eveningSnack', label: 'Evening Snack', time: '5:00 PM' },
   { id: 'dinner', label: 'Dinner', time: '8:00 PM' },
 ];
 
 const emptyMeals = (): Record<MealSlotKey, string> => ({
+  earlyMorning: '',
   breakfast: '',
+  midMorning: '',
   lunch: '',
   eveningSnack: '',
   dinner: '',
 });
 
-const balancedVegetarianMeals: Array<Record<MealSlotKey, string>> = [
+type CoreMealPlan = Record<
+  Exclude<MealSlotKey, 'earlyMorning' | 'midMorning'>,
+  string
+>;
+
+const withTableMealSlots = (
+  meals: CoreMealPlan[],
+  earlyMorning: string[],
+  midMorning: string[],
+): Array<Record<MealSlotKey, string>> =>
+  meals.map((meal, index) => ({
+    earlyMorning:
+      earlyMorning[index] ||
+      'Warm water with soaked nuts or seeds as advised',
+    breakfast: meal.breakfast,
+    midMorning:
+      midMorning[index] ||
+      'Seasonal fruit or light hydrating snack',
+    lunch: meal.lunch,
+    eveningSnack: meal.eveningSnack,
+    dinner: meal.dinner,
+  }));
+
+const balancedVegetarianMeals = withTableMealSlots([
   {
     breakfast: 'Vegetable poha with curd and 5 soaked almonds',
     lunch: '2 phulkas, dal, seasonal sabzi, salad, and plain curd',
@@ -76,9 +103,25 @@ const balancedVegetarianMeals: Array<Record<MealSlotKey, string>> = [
     eveningSnack: 'Fruit smoothie without added sugar',
     dinner: 'Clear vegetable soup with dal cheela',
   },
-];
+], [
+  'Warm lemon water and 5 soaked almonds',
+  'Jeera water with 2 soaked walnuts',
+  'Warm water with chia seeds',
+  'Methi water and 4 soaked almonds',
+  'Cinnamon water with 2 dates',
+  'Plain warm water and soaked raisins',
+  'Fennel water with 5 soaked almonds',
+], [
+  'One seasonal fruit',
+  'Coconut water',
+  'Guava or apple slices',
+  'Buttermilk',
+  'Papaya bowl',
+  'Cucumber and carrot sticks',
+  'Pomegranate bowl',
+]);
 
-const diabetesFriendlyMeals: Array<Record<MealSlotKey, string>> = [
+const diabetesFriendlyMeals = withTableMealSlots([
   {
     breakfast: 'Moong dal chilla with paneer stuffing',
     lunch: '2 small phulkas, dal, non-starchy sabzi, and salad',
@@ -121,9 +164,25 @@ const diabetesFriendlyMeals: Array<Record<MealSlotKey, string>> = [
     eveningSnack: 'Coconut water with 6 almonds',
     dinner: 'Clear soup with grilled tofu and sauteed greens',
   },
-];
+], [
+  'Warm water with soaked methi seeds if tolerated',
+  'Plain warm water with 5 soaked almonds',
+  'Cinnamon water without sugar',
+  'Jeera water and 2 walnuts',
+  'Methi water if already tolerated',
+  'Plain warm water with soaked seeds',
+  'Warm water with 5 soaked almonds',
+], [
+  'Cucumber sticks with curd dip',
+  'Half apple with chia seeds',
+  'Guava slices',
+  'Buttermilk without sugar',
+  'Sprouts and cucumber bowl',
+  'Tomato cucumber salad',
+  'Papaya small bowl',
+]);
 
-const highProteinMeals: Array<Record<MealSlotKey, string>> = [
+const highProteinMeals = withTableMealSlots([
   {
     breakfast: 'Paneer stuffed besan chilla with curd',
     lunch: '2 phulkas, dal, paneer tikka, salad, and curd',
@@ -166,7 +225,23 @@ const highProteinMeals: Array<Record<MealSlotKey, string>> = [
     eveningSnack: 'Sprouts bhel without sev',
     dinner: 'Mixed dal soup with paneer salad',
   },
-];
+], [
+  'Warm water with soaked almonds and chia',
+  'Milk or soy milk as tolerated',
+  'Warm water with 2 walnuts',
+  'Jeera water with soaked almonds',
+  'Plain warm water and pumpkin seeds',
+  'Warm water with soaked peanuts',
+  'Milk or curd drink without sugar',
+], [
+  'Greek yogurt with seeds',
+  'Paneer cubes with cucumber',
+  'Boiled chana small bowl',
+  'Sprouts salad',
+  'Roasted soybean snack',
+  'Curd with flaxseed',
+  'Peanut chaat',
+]);
 
 export const DIET_PLAN_TEMPLATES: DietPlanTemplate[] = [
   {
@@ -221,6 +296,55 @@ export const createEmptyDietPlan = (): DietPlan => ({
     'Follow the plan as discussed. Keep water intake steady and share progress or discomfort during follow-up.',
   updatedAt: new Date().toISOString(),
 });
+
+export const normalizeDietPlan = (value: unknown): DietPlan => {
+  const basePlan = createEmptyDietPlan();
+  const incomingPlan =
+    value && typeof value === 'object' ? (value as Partial<DietPlan>) : {};
+  const incomingPatient =
+    incomingPlan.patient && typeof incomingPlan.patient === 'object'
+      ? incomingPlan.patient
+      : {};
+  const incomingDays = Array.isArray(incomingPlan.days)
+    ? incomingPlan.days
+    : [];
+
+  return {
+    ...basePlan,
+    ...incomingPlan,
+    patient: {
+      ...basePlan.patient,
+      ...incomingPatient,
+    },
+    days: basePlan.days.map((day, index) => {
+      const incomingDay =
+        incomingDays.find(
+          (item) =>
+            item?.id === day.id ||
+            item?.label?.toLowerCase() === day.label.toLowerCase(),
+        ) ?? incomingDays[index];
+
+      return {
+        ...day,
+        ...incomingDay,
+        id: day.id,
+        label: day.label,
+        meals: {
+          ...emptyMeals(),
+          ...(incomingDay?.meals || {}),
+        },
+        note:
+          typeof incomingDay?.note === 'string'
+            ? incomingDay.note
+            : day.note,
+      };
+    }),
+    updatedAt:
+      typeof incomingPlan.updatedAt === 'string'
+        ? incomingPlan.updatedAt
+        : basePlan.updatedAt,
+  };
+};
 
 export const applyDietPlanTemplate = (
   plan: DietPlan,

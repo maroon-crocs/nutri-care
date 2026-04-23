@@ -5,7 +5,13 @@ interface Env {
 
 type ChatHistoryEntry = { role: string; text: string };
 
-type MealSlotKey = 'breakfast' | 'lunch' | 'eveningSnack' | 'dinner';
+type MealSlotKey =
+  | 'earlyMorning'
+  | 'breakfast'
+  | 'midMorning'
+  | 'lunch'
+  | 'eveningSnack'
+  | 'dinner';
 
 interface DietPlanDay {
   id: string;
@@ -252,7 +258,7 @@ ${JSON.stringify(patientContext, null, 2)}
 
 Requirements:
 - Return exactly 7 days in this order: Monday, Tuesday, Wednesday, Thursday, Friday, Saturday, Sunday.
-- Each day must have exactly these meal keys: breakfast, lunch, eveningSnack, dinner.
+- Each day must have exactly these meal keys: earlyMorning, breakfast, midMorning, lunch, eveningSnack, dinner.
 - Each meal should include practical foods and portion guidance in one concise sentence.
 - Match the stated age, goal, preferences, and restrictions.
 - Do not include restricted foods.
@@ -269,7 +275,9 @@ Return ONLY valid JSON with this schema:
       "id": "monday",
       "label": "Monday",
       "meals": {
+        "earlyMorning": string,
         "breakfast": string,
+        "midMorning": string,
         "lunch": string,
         "eveningSnack": string,
         "dinner": string

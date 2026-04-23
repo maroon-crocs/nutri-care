@@ -10,25 +10,58 @@ import {
   formatDietPlanForSharing,
   MEAL_SLOTS,
   mergeGeneratedDietPlan,
+  normalizeDietPlan,
   normalizeInstagramHandle,
   normalizeWhatsAppNumber,
   splitTextIntoShareChunks,
 } from '../utils/dietPlan.ts';
 
-test('createEmptyDietPlan creates seven days with four meal slots', () => {
+test('createEmptyDietPlan creates seven days with printable meal slots', () => {
   const plan = createEmptyDietPlan();
 
   assert.equal(plan.days.length, 7);
-  assert.equal(MEAL_SLOTS.length, 4);
+  assert.equal(MEAL_SLOTS.length, 6);
 
   for (const day of plan.days) {
     assert.deepEqual(Object.keys(day.meals).sort(), [
       'breakfast',
       'dinner',
+      'earlyMorning',
       'eveningSnack',
       'lunch',
+      'midMorning',
     ]);
   }
+});
+
+test('normalizeDietPlan upgrades older saved drafts to printable meal slots', () => {
+  const normalized = normalizeDietPlan({
+    title: 'Old Draft',
+    patient: {
+      name: 'Aarav',
+      phone: '98765 43210',
+    },
+    days: [
+      {
+        id: 'monday',
+        label: 'Monday',
+        meals: {
+          breakfast: 'Poha',
+          lunch: 'Dal roti',
+          eveningSnack: 'Makhana',
+          dinner: 'Khichdi',
+        },
+        note: 'Walk after dinner.',
+      },
+    ],
+  });
+
+  assert.equal(normalized.title, 'Old Draft');
+  assert.equal(normalized.patient.name, 'Aarav');
+  assert.equal(normalized.patient.instagramHandle, '');
+  assert.equal(normalized.days[0].meals.breakfast, 'Poha');
+  assert.equal(normalized.days[0].meals.earlyMorning, '');
+  assert.equal(normalized.days[0].meals.midMorning, '');
 });
 
 test('applyDietPlanTemplate fills meals and keeps patient details', () => {

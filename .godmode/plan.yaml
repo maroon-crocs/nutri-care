@@ -29,6 +29,12 @@ rounds:
   - round: 8
     tasks:
       - task-08
+  - round: 9
+    tasks:
+      - task-09
+  - round: 10
+    tasks:
+      - task-10
 tasks:
   - id: task-01
     title: Add diet plan types and helper functions
@@ -114,6 +120,30 @@ tasks:
       - components/DietPlanCreator.tsx
     depends_on:
       - task-07
+    agent: false
+    test: npm run build
+    done_when: npm run build
+  - id: task-09
+    title: Add printable diet table data shape
+    skill: build
+    files:
+      - types.ts
+      - utils/dietPlan.ts
+      - tests/dietPlan.test.mjs
+      - worker/index.ts
+    depends_on:
+      - task-08
+    agent: false
+    test: node --experimental-strip-types --test tests/dietPlan.test.mjs
+    done_when: node --experimental-strip-types --test tests/dietPlan.test.mjs
+  - id: task-10
+    title: Add landscape print table PDF layout
+    skill: build
+    files:
+      - components/DietPlanCreator.tsx
+      - src/index.css
+    depends_on:
+      - task-09
     agent: false
     test: npm run build
     done_when: npm run build

@@ -49,7 +49,13 @@ export interface MealAnalysisResult {
   };
 }
 
-export type MealSlotKey = 'breakfast' | 'lunch' | 'eveningSnack' | 'dinner';
+export type MealSlotKey =
+  | 'earlyMorning'
+  | 'breakfast'
+  | 'midMorning'
+  | 'lunch'
+  | 'eveningSnack'
+  | 'dinner';
 
 export interface MealSlot {
   id: MealSlotKey;
