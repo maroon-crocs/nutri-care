@@ -1,0 +1,49 @@
+feature: diet-plan-creator
+stack: TypeScript
+commands:
+  build: npm run build
+  lint: eslint --fix
+  test: node --test tests/dietPlan.test.mjs
+rounds:
+  - round: 1
+    tasks:
+      - task-01
+  - round: 2
+    tasks:
+      - task-02
+  - round: 3
+    tasks:
+      - task-03
+tasks:
+  - id: task-01
+    title: Add diet plan types and helper functions
+    skill: build
+    files:
+      - types.ts
+      - utils/dietPlan.ts
+      - tests/dietPlan.test.mjs
+    depends_on: []
+    agent: false
+    test: node --test tests/dietPlan.test.mjs
+    done_when: node --test tests/dietPlan.test.mjs
+  - id: task-02
+    title: Build the diet plan creator page
+    skill: build
+    files:
+      - components/DietPlanCreator.tsx
+    depends_on:
+      - task-01
+    agent: false
+    test: npm run build
+    done_when: npm run build
+  - id: task-03
+    title: Wire diet plan route and navigation
+    skill: build
+    files:
+      - App.tsx
+      - components/Header.tsx
+    depends_on:
+      - task-02
+    agent: false
+    test: npm run build
+    done_when: npm run build

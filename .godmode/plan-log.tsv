@@ -1,0 +1,2 @@
+timestamp	feature	total_tasks	total_rounds	total_files	max_parallelism	plan_path	spec_path
+2026-04-23T00:00:00Z	diet-plan-creator	3	3	6	1	.godmode/plan.yaml	.godmode/spec.md
