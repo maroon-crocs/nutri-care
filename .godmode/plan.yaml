@@ -35,6 +35,12 @@ rounds:
   - round: 10
     tasks:
       - task-10
+  - round: 11
+    tasks:
+      - task-11
+  - round: 12
+    tasks:
+      - task-12
 tasks:
   - id: task-01
     title: Add diet plan types and helper functions
@@ -144,6 +150,30 @@ tasks:
       - src/index.css
     depends_on:
       - task-09
+    agent: false
+    test: npm run build
+    done_when: npm run build
+  - id: task-11
+    title: Add direct PDF generation utility
+    skill: build
+    files:
+      - package.json
+      - package-lock.json
+      - utils/dietPlanPdf.ts
+      - tests/dietPlan.test.mjs
+    depends_on:
+      - task-10
+    agent: false
+    test: node --experimental-strip-types --test tests/dietPlan.test.mjs
+    done_when: node --experimental-strip-types --test tests/dietPlan.test.mjs
+  - id: task-12
+    title: Replace browser print with direct PDF download
+    skill: build
+    files:
+      - components/DietPlanCreator.tsx
+      - src/index.css
+    depends_on:
+      - task-11
     agent: false
     test: npm run build
     done_when: npm run build

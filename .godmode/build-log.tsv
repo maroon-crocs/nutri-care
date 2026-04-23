@@ -9,3 +9,5 @@ round	task_id	agent_time_ms	status	conflicted_file	notes
 8	task-08	0	merged		production build passed
 9	task-09	0	merged		printable table shape tests passed
 10	task-10	0	merged		production build and Worker dry-run passed
+11	task-11	0	merged		direct PDF helper tests passed
+12	task-12	0	merged		direct PDF sample and production build passed

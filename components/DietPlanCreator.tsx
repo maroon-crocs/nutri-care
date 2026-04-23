@@ -4,11 +4,11 @@ import {
   Check,
   Clipboard,
   Copy,
+  Download,
   FileText,
   Instagram,
   Loader2,
   Phone,
-  Printer,
   RefreshCcw,
   Send,
   Sparkles,
@@ -31,6 +31,7 @@ import {
   normalizeInstagramHandle,
   splitTextIntoShareChunks,
 } from '../utils/dietPlan';
+import { downloadDietPlanPdf } from '../utils/dietPlanPdf';
 
 type NoticeState = {
   type: 'success' | 'error';
@@ -300,14 +301,29 @@ const DietPlanCreator: React.FC = () => {
     window.open(buildWhatsAppDietPlanUrl(plan), '_blank', 'noopener,noreferrer');
   };
 
+  const handleDownloadPdf = () => {
+    try {
+      downloadDietPlanPdf(plan);
+      setNotice({ type: 'success', message: 'Diet plan PDF downloaded.' });
+    } catch (error) {
+      setNotice({
+        type: 'error',
+        message:
+          error instanceof Error
+            ? error.message
+            : 'PDF generation failed. Please try again.',
+      });
+    }
+  };
+
   const patientSummary = [
     plan.patient.name.trim() || 'New patient',
     plan.patient.goal.trim() || 'Weekly nutrition plan',
   ].join(' - ');
 
   return (
-    <main className="min-h-screen bg-slate-50 pt-24 text-slate-900 print:bg-white print:pt-0">
-      <section className="border-b border-slate-200 bg-white print:hidden">
+    <main className="min-h-screen bg-slate-50 pt-24 text-slate-900">
+      <section className="border-b border-slate-200 bg-white">
         <div className="container mx-auto px-6 py-8">
           <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
             <div className="max-w-3xl">
@@ -333,11 +349,11 @@ const DietPlanCreator: React.FC = () => {
               </button>
               <button
                 type="button"
-                onClick={() => window.print()}
+                onClick={handleDownloadPdf}
                 className="inline-flex items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700 transition hover:border-leaf-300 hover:text-leaf-700"
               >
-                <Printer size={18} />
-                Print PDF
+                <Download size={18} />
+                Download PDF
               </button>
               <button
                 type="button"
@@ -365,8 +381,8 @@ const DietPlanCreator: React.FC = () => {
         </div>
       </section>
 
-      <section className="container mx-auto grid gap-6 px-6 py-8 lg:grid-cols-[minmax(0,1fr)_380px] print:block print:px-0 print:py-0">
-        <div className="space-y-6 print:hidden">
+      <section className="container mx-auto grid gap-6 px-6 py-8 lg:grid-cols-[minmax(0,1fr)_380px]">
+        <div className="space-y-6">
           <div className="rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
             <div className="mb-6 flex items-center gap-3">
               <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-leaf-50 text-leaf-700">
@@ -784,9 +800,9 @@ const DietPlanCreator: React.FC = () => {
           </div>
         </div>
 
-        <aside className="lg:sticky lg:top-28 lg:self-start print:hidden">
-          <div className="rounded-lg border border-slate-200 bg-white p-6 shadow-sm print:border-0 print:p-0 print:shadow-none">
-            <div className="mb-5 flex items-center justify-between gap-4 print:hidden">
+        <aside className="lg:sticky lg:top-28 lg:self-start">
+          <div className="rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
+            <div className="mb-5 flex items-center justify-between gap-4">
               <div>
                 <h2 className="text-lg font-bold text-slate-900">
                   Patient Preview
@@ -805,74 +821,11 @@ const DietPlanCreator: React.FC = () => {
                 <Clipboard size={18} />
               </button>
             </div>
-            <pre className="max-h-[calc(100vh-220px)] overflow-auto whitespace-pre-wrap rounded-lg bg-slate-950 p-5 font-sans text-sm leading-6 text-slate-100 print:max-h-none print:overflow-visible print:bg-white print:p-0 print:text-slate-900">
+            <pre className="max-h-[calc(100vh-220px)] overflow-auto whitespace-pre-wrap rounded-lg bg-slate-950 p-5 font-sans text-sm leading-6 text-slate-100">
               {shareText}
             </pre>
           </div>
         </aside>
-      </section>
-
-      <section className="diet-plan-print hidden print:block">
-        <div className="mb-4 flex items-start justify-between gap-6">
-          <div>
-            <h1 className="text-xl font-bold">
-              {plan.title.trim() || 'Weekly Diet Plan'}
-            </h1>
-            <p className="mt-1 text-sm">
-              Patient: {plan.patient.name.trim() || 'Patient'}
-              {plan.patient.age.trim() ? ` | Age: ${plan.patient.age.trim()}` : ''}
-              {plan.patient.goal.trim() ? ` | Goal: ${plan.patient.goal.trim()}` : ''}
-            </p>
-            {plan.patient.preferences.trim() && (
-              <p className="mt-1 text-sm">
-                Preferences/Restrictions: {plan.patient.preferences.trim()}
-              </p>
-            )}
-          </div>
-          <div className="text-right text-sm">
-            <p className="font-bold">
-              {plan.dietitianName.trim() || 'Dietitian'}
-            </p>
-            {plan.patient.startDate && (
-              <p>
-                Start Date:{' '}
-                {new Date(plan.patient.startDate).toLocaleDateString('en-IN')}
-              </p>
-            )}
-          </div>
-        </div>
-
-        <table aria-label="Printable weekly diet plan">
-          <thead>
-            <tr>
-              <th className="day-column">Day</th>
-              {MEAL_SLOTS.map((slot) => (
-                <th key={slot.id}>{slot.label}</th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {plan.days.map((day) => (
-              <tr key={day.id}>
-                <td className="day-cell">{day.label}</td>
-                {MEAL_SLOTS.map((slot) => (
-                  <td key={slot.id}>
-                    {day.meals[slot.id]?.trim() || ''}
-                    {day.note.trim() && slot.id === 'dinner'
-                      ? `\nNote: ${day.note.trim()}`
-                      : ''}
-                  </td>
-                ))}
-              </tr>
-            ))}
-          </tbody>
-        </table>
-
-        {plan.instructions.trim() && (
-          <div className="print-instructions">
-            <strong>Instructions:</strong> {plan.instructions.trim()}
-          </div>
-        )}
       </section>
     </main>
   );
