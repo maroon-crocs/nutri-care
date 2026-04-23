@@ -5,13 +5,40 @@ interface Env {
 
 type ChatHistoryEntry = { role: string; text: string };
 
+type MealSlotKey = 'breakfast' | 'lunch' | 'eveningSnack' | 'dinner';
+
+interface DietPlanDay {
+  id: string;
+  label: string;
+  meals: Record<MealSlotKey, string>;
+  note: string;
+}
+
+interface DietPlanPatient {
+  name: string;
+  phone: string;
+  age: string;
+  goal: string;
+  startDate: string;
+  preferences: string;
+}
+
+interface DietPlanInput {
+  title: string;
+  dietitianName: string;
+  patient: DietPlanPatient;
+  days: DietPlanDay[];
+  instructions: string;
+}
+
 type GeminiAction =
   | 'chat'
   | 'bmiAdvice'
   | 'analyzeMeal'
   | 'cravingHack'
   | 'leftoverRecipe'
-  | 'moodSnack';
+  | 'moodSnack'
+  | 'generateDietPlan';
 
 interface GeminiRequestMap {
   chat: { message: string; history?: ChatHistoryEntry[] };
@@ -20,6 +47,7 @@ interface GeminiRequestMap {
   cravingHack: { craving: string };
   leftoverRecipe: { ingredients: string };
   moodSnack: { mood: string };
+  generateDietPlan: { plan: DietPlanInput };
 }
 
 const MODEL = 'gemini-2.5-flash';
@@ -35,6 +63,15 @@ Guidelines:
 3. Content: Focus on balanced diets, whole foods, hydration, and sustainable lifestyle changes.
 4. Brevity: Keep answers concise and easy to read (use bullet points if helpful).
 5. Context: The user is browsing a nutrition website offering services like weight management, disease management (Diabetes, PCOD), and kids nutrition.
+`;
+
+const DIET_PLAN_SYSTEM_INSTRUCTION = `
+You help a qualified dietitian prepare editable draft diet plans.
+Return general nutrition guidance only, not diagnosis or medical prescription.
+Treat allergies, dislikes, dietary preferences, religious preferences, and medical restrictions as hard constraints.
+If the goal or restrictions mention a medical condition, keep recommendations conservative and add a review note to confirm with the treating doctor where appropriate.
+Use practical Indian home-style meals unless the patient preferences clearly ask otherwise.
+Return only valid JSON matching the requested schema.
 `;
 
 export default {
@@ -93,6 +130,8 @@ async function handleGeminiAction(
       return generateLeftoverRecipe(payload as GeminiRequestMap['leftoverRecipe'], env);
     case 'moodSnack':
       return generateMoodSnack(payload as GeminiRequestMap['moodSnack'], env);
+    case 'generateDietPlan':
+      return generateDietPlan(payload as GeminiRequestMap['generateDietPlan'], env);
     default:
       throw new Error('Unknown Gemini action.');
   }
@@ -188,6 +227,63 @@ Return ONLY valid JSON.`;
   return generateJson(prompt, env);
 }
 
+async function generateDietPlan(payload: GeminiRequestMap['generateDietPlan'], env: Env) {
+  const plan = payload?.plan;
+
+  if (!plan?.patient) {
+    throw new Error('Patient details are required to generate a diet plan.');
+  }
+
+  const patient = plan.patient;
+  const patientContext = {
+    age: clip(patient.age),
+    goal: clip(patient.goal),
+    preferencesAndRestrictions: clip(patient.preferences, 900),
+    startDate: clip(patient.startDate),
+    patientName: clip(patient.name),
+    currentPlanTitle: clip(plan.title),
+    dietitianName: clip(plan.dietitianName),
+  };
+
+  const prompt = `Create an editable 7-day diet plan draft for the following patient.
+
+Patient context:
+${JSON.stringify(patientContext, null, 2)}
+
+Requirements:
+- Return exactly 7 days in this order: Monday, Tuesday, Wednesday, Thursday, Friday, Saturday, Sunday.
+- Each day must have exactly these meal keys: breakfast, lunch, eveningSnack, dinner.
+- Each meal should include practical foods and portion guidance in one concise sentence.
+- Match the stated age, goal, preferences, and restrictions.
+- Do not include restricted foods.
+- Include variety across the week.
+- Add reviewNotes for anything the dietitian should verify before sending.
+
+Return ONLY valid JSON with this schema:
+{
+  "title": string,
+  "instructions": string,
+  "reviewNotes": string[],
+  "days": [
+    {
+      "id": "monday",
+      "label": "Monday",
+      "meals": {
+        "breakfast": string,
+        "lunch": string,
+        "eveningSnack": string,
+        "dinner": string
+      },
+      "note": string
+    }
+  ]
+}`;
+
+  return generateJson(prompt, env, {
+    systemInstruction: DIET_PLAN_SYSTEM_INSTRUCTION,
+  });
+}
+
 async function generateText(
   prompt: string,
   env: Env,
@@ -203,8 +299,13 @@ async function generateText(
   return text;
 }
 
-async function generateJson(prompt: string, env: Env) {
+async function generateJson(
+  prompt: string,
+  env: Env,
+  config: Record<string, unknown> = {}
+) {
   const response = await callGemini(prompt, env, {
+    ...config,
     responseMimeType: 'application/json',
   });
   const text = extractText(response);
@@ -214,6 +315,10 @@ async function generateJson(prompt: string, env: Env) {
   }
 
   return JSON.parse(text);
+}
+
+function clip(value: unknown, maxLength = 500) {
+  return typeof value === 'string' ? value.trim().slice(0, maxLength) : '';
 }
 
 async function callGemini(

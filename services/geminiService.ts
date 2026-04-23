@@ -1,4 +1,4 @@
-import { MealAnalysisResult } from '../types';
+import { DietPlan, DietPlanGenerationResult, MealAnalysisResult } from '../types';
 
 type ChatHistoryEntry = { role: string; text: string };
 
@@ -8,7 +8,8 @@ type GeminiAction =
   | 'analyzeMeal'
   | 'cravingHack'
   | 'leftoverRecipe'
-  | 'moodSnack';
+  | 'moodSnack'
+  | 'generateDietPlan';
 
 interface GeminiRequestMap {
   chat: { message: string; history?: ChatHistoryEntry[] };
@@ -17,6 +18,7 @@ interface GeminiRequestMap {
   cravingHack: { craving: string };
   leftoverRecipe: { ingredients: string };
   moodSnack: { mood: string };
+  generateDietPlan: { plan: DietPlan };
 }
 
 interface GeminiResponseMap {
@@ -26,6 +28,7 @@ interface GeminiResponseMap {
   cravingHack: any;
   leftoverRecipe: any;
   moodSnack: any;
+  generateDietPlan: DietPlanGenerationResult;
 }
 
 const requestGemini = async <TAction extends GeminiAction>(
@@ -73,3 +76,7 @@ export const generateLeftoverRecipe = async (ingredients: string): Promise<any> 
 
 export const generateMoodSnack = async (mood: string): Promise<any> =>
   requestGemini('moodSnack', { mood });
+
+export const generateDietPlanWithAI = async (
+  plan: DietPlan,
+): Promise<DietPlanGenerationResult> => requestGemini('generateDietPlan', { plan });
