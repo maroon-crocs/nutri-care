@@ -213,7 +213,9 @@ test('buildDietPlanPdfTableData creates a weekly table with meal columns', () =>
   assert.equal(table.head[0][0], 'Day');
   assert.deepEqual(table.head[0], [
     'Day',
+    'Early Morning',
     'Breakfast',
+    'Mid-Morning',
     'Lunch',
     'Evening Snack',
     'Dinner',
@@ -222,13 +224,13 @@ test('buildDietPlanPdfTableData creates a weekly table with meal columns', () =>
   assert.equal(table.body[0][0], 'Monday');
   assert.deepEqual(table.body[0], [
     'Monday',
+    'Warm lemon water',
     'Vegetable poha',
+    'Fruit bowl',
     'Dal roti sabzi',
     'Roasted chana',
     'Khichdi',
   ]);
-  assert.doesNotMatch(table.head[0].join(' '), /Early Morning|Mid-Morning/);
-  assert.doesNotMatch(table.body[0].join(' '), /Warm lemon water|Fruit bowl/);
 });
 
 test('buildDietPlanPdfSummaryItems includes extended intake details', () => {

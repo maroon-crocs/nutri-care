@@ -35,13 +35,7 @@ const BORDER_GREEN = [187, 222, 195] as const;
 const DIETITIAN_NOTES_LINE_HEIGHT = 4.4;
 const DIETITIAN_NOTES_MIN_HEIGHT = 28;
 
-const PDF_MEAL_SLOTS = MEAL_SLOTS.filter(
-  (slot) =>
-    slot.id === 'breakfast' ||
-    slot.id === 'lunch' ||
-    slot.id === 'eveningSnack' ||
-    slot.id === 'dinner',
-);
+const PDF_MEAL_SLOTS = MEAL_SLOTS;
 
 const splitLongLine = (doc: jsPDF, text: string, maxWidth: number): string[] =>
   text.trim() ? doc.splitTextToSize(text.trim(), maxWidth) : [];
@@ -208,7 +202,7 @@ export const buildDietPlanPdfGuidelineSections = (
     {
       title: 'Daily Meal Guidelines',
       lines: [
-        'Follow breakfast, lunch, evening snack, and dinner in the day-wise order shown on page 1.',
+        'Follow early morning, breakfast, mid-morning, lunch, evening snack, and dinner in the day-wise order shown on page 1.',
         'Keep meal timing consistent and avoid long gaps between meals.',
         'Use home-style portions first; adjust roti, rice, or snack quantity during review.',
       ],
@@ -471,9 +465,9 @@ export const createDietPlanPdf = (plan: DietPlan): jsPDF => {
     showHead: 'everyPage',
     startY: tableStartY,
     styles: {
-      cellPadding: 1.2,
+      cellPadding: 1,
       font: 'helvetica',
-      fontSize: 7.15,
+      fontSize: 6.65,
       lineColor: [...BORDER_GREEN],
       lineWidth: 0.18,
       overflow: 'linebreak',
@@ -496,17 +490,19 @@ export const createDietPlanPdf = (plan: DietPlan): jsPDF => {
     },
     columnStyles: {
       0: {
-        cellWidth: 22,
+        cellWidth: 20,
         fillColor: [...BRAND_GREEN_SOFT],
         fontStyle: 'bold',
         halign: 'center',
         textColor: [...BRAND_GREEN_DARK],
         valign: 'middle',
       },
-      1: { cellWidth: 64 },
-      2: { cellWidth: 64 },
-      3: { cellWidth: 64 },
-      4: { cellWidth: contentWidth - 22 - 64 * 3 },
+      1: { cellWidth: 38 },
+      2: { cellWidth: 46 },
+      3: { cellWidth: 38 },
+      4: { cellWidth: 46 },
+      5: { cellWidth: 45 },
+      6: { cellWidth: contentWidth - 20 - 38 * 2 - 46 * 2 - 45 },
     },
     theme: 'grid',
   });
