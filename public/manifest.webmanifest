@@ -1,0 +1,19 @@
+{
+  "name": "NutriGuide - Your Personal Nutrition Expert",
+  "short_name": "NutriGuide",
+  "description": "NutriGuide is a personal nutrition and wellness platform with AI guidance, BMI tools, healthy games, and private diet plan creation.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#f8fafc",
+  "theme_color": "#16a34a",
+  "categories": ["health", "fitness", "lifestyle"],
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "sizes": "64x64",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

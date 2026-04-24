@@ -13,11 +13,6 @@ type PdfSummaryItem = {
   value: string;
 };
 
-type PdfGuidelineSection = {
-  title: string;
-  lines: string[];
-};
-
 type AutoTableDoc = jsPDF & {
   lastAutoTable?: {
     finalY: number;
@@ -32,8 +27,7 @@ const BRAND_GREEN_PALE = [247, 252, 248] as const;
 const SLATE_TEXT = [30, 41, 59] as const;
 const MUTED_TEXT = [100, 116, 139] as const;
 const BORDER_GREEN = [187, 222, 195] as const;
-const DIETITIAN_NOTES_LINE_HEIGHT = 4.4;
-const DIETITIAN_NOTES_MIN_HEIGHT = 28;
+const GENERAL_GUIDELINE_LINE_HEIGHT = 4.5;
 
 const PDF_MEAL_SLOTS = MEAL_SLOTS;
 
@@ -183,9 +177,7 @@ export const buildDietPlanPdfMetaLines = (plan: DietPlan): string[] => {
   return lines;
 };
 
-export const buildDietPlanPdfGuidelineSections = (
-  plan: DietPlan,
-): PdfGuidelineSection[] => {
+export const buildDietPlanPdfGeneralGuidelines = (plan: DietPlan): string[] => {
   const healthLines = [
     plan.patient.healthIssues.trim()
       ? `Health issue noted: ${plan.patient.healthIssues.trim()}. Keep changes conservative and review symptoms.`
@@ -199,50 +191,35 @@ export const buildDietPlanPdfGuidelineSections = (
   ];
 
   return [
-    {
-      title: 'Daily Meal Guidelines',
-      lines: [
-        'Follow early morning, breakfast, mid-morning, lunch, evening snack, and dinner in the day-wise order shown on page 1.',
-        'Keep meal timing consistent and avoid long gaps between meals.',
-        'Use home-style portions first; adjust roti, rice, or snack quantity during review.',
-      ],
-    },
-    {
-      title: 'Hydration And Lifestyle',
-      lines: [
-        'Drink 2.5-3 liters water daily unless restricted by a doctor.',
-        'Keep oil, sugar, fried food, packaged snacks, and sweet drinks controlled.',
-        'Add a 10-15 minute walk after major meals when suitable for the patient.',
-      ],
-    },
-    {
-      title: 'Medical And Safety Notes',
-      lines: healthLines,
-    },
-    {
-      title: 'Follow-Up Checklist',
-      lines: [
-        'Track hunger, cravings, sleep, bloating, energy, and digestion for the week.',
-        'Share weight or measurements only on the agreed follow-up day, not daily.',
-        'Stop or review the plan if discomfort, dizziness, allergy symptoms, or sugar crashes occur.',
-      ],
-    },
+    'Follow early morning, breakfast, mid-morning, lunch, evening snack, and dinner in the day-wise order shown on page 1.',
+    'Keep meal timing consistent and avoid long gaps between meals.',
+    'Use home-style portions first; adjust roti, rice, or snack quantity during review.',
+    'Drink 2.5-3 liters water daily unless restricted by a doctor.',
+    'Keep oil, sugar, fried food, packaged snacks, and sweet drinks controlled.',
+    'Add a 10-15 minute walk after major meals when suitable for the patient.',
+    ...healthLines,
+    'Track hunger, cravings, sleep, bloating, energy, and digestion for the week.',
+    'Share weight or measurements only on the agreed follow-up day, not daily.',
+    'Stop or review the plan if discomfort, dizziness, allergy symptoms, or sugar crashes occur.',
   ];
 };
 
-export const buildDietPlanPdfNoteLines = (
-  doc: jsPDF,
-  plan: DietPlan,
-  maxWidth: number,
-): string[] => {
-  const customNotes = [
+const buildDietPlanPdfNoteItems = (plan: DietPlan): string[] =>
+  [
     plan.instructions.trim() ? `Instructions: ${plan.instructions.trim()}` : '',
     ...plan.days
       .filter((day) => day.note.trim())
       .map((day) => `${day.label}: ${day.note.trim()}`),
   ].filter(Boolean);
 
-  return customNotes.flatMap((note) => splitLongLine(doc, note, maxWidth));
+export const buildDietPlanPdfNoteLines = (
+  doc: jsPDF,
+  plan: DietPlan,
+  maxWidth: number,
+): string[] => {
+  return buildDietPlanPdfNoteItems(plan).flatMap((note) =>
+    splitLongLine(doc, note, maxWidth),
+  );
 };
 
 const fitTextWithEllipsis = (
@@ -296,51 +273,17 @@ const drawSummaryPanel = (
   return y + panelHeight + 4;
 };
 
-const drawGuidelineCard = (
-  doc: jsPDF,
-  section: PdfGuidelineSection,
-  x: number,
-  y: number,
-  width: number,
-  height: number,
-): void => {
-  doc.setFillColor(...BRAND_GREEN_PALE);
-  doc.roundedRect(x, y, width, height, 3, 3, 'F');
-  doc.setDrawColor(...BORDER_GREEN);
-  doc.setLineWidth(0.2);
-  doc.roundedRect(x, y, width, height, 3, 3, 'S');
-
-  doc.setTextColor(...BRAND_GREEN_DARK);
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(10);
-  doc.text(section.title, x + 5, y + 7);
-
-  doc.setTextColor(...SLATE_TEXT);
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(8.5);
-
-  let lineY = y + 14;
-  section.lines.forEach((line) => {
-    const wrappedLines = splitLongLine(doc, line, width - 14);
-    doc.setFillColor(...BRAND_GREEN);
-    doc.circle(x + 6, lineY - 1.3, 0.8, 'F');
-    wrappedLines.forEach((wrappedLine, index) => {
-      doc.text(wrappedLine, x + 10, lineY + index * 4.2);
-    });
-    lineY += wrappedLines.length * 4.2 + 3;
-  });
-};
-
 const drawGuidelinesPage = (
   doc: jsPDF,
   plan: DietPlan,
   pageWidth: number,
 ): void => {
   const contentWidth = pageWidth - PAGE_MARGIN * 2;
-  const cardGap = 6;
-  const cardWidth = (contentWidth - cardGap) / 2;
-  const cardHeight = 48;
-  const sections = buildDietPlanPdfGuidelineSections(plan);
+  const points = [
+    ...buildDietPlanPdfGeneralGuidelines(plan),
+    ...buildDietPlanPdfNoteItems(plan),
+  ];
+  const pageHeight = doc.internal.pageSize.getHeight();
 
   doc.addPage();
   drawNutriGuideLogo(doc, PAGE_MARGIN, 8, 13);
@@ -348,97 +291,69 @@ const drawGuidelinesPage = (
   doc.setTextColor(...BRAND_GREEN_DARK);
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(15);
-  doc.text('Plan Guidelines', PAGE_MARGIN + 17, 16);
+  doc.text('General Guidelines', PAGE_MARGIN + 17, 16);
 
-  doc.setTextColor(...MUTED_TEXT);
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(8.5);
-  doc.text(
-    'Use these rules while editing, sending, and reviewing the diet plan.',
-    PAGE_MARGIN + 17,
-    22,
-  );
+  let cursorY = 28;
+  const pointsPanelHeight = pageHeight - cursorY - 15;
+  const pointTextWidth = contentWidth - 18;
+  const pointBottomY = cursorY + pointsPanelHeight - 8;
 
-  let cursorY = 30;
-  sections.forEach((section, index) => {
-    const x = PAGE_MARGIN + (index % 2) * (cardWidth + cardGap);
-    const y = cursorY + Math.floor(index / 2) * (cardHeight + cardGap);
-    drawGuidelineCard(doc, section, x, y, cardWidth, cardHeight);
-  });
-
-  cursorY += cardHeight * 2 + cardGap + 8;
-
-  const notesTextX = PAGE_MARGIN + 36;
-  const notesTextWidth = contentWidth - 41;
-  const maxPanelHeight = doc.internal.pageSize.getHeight() - cursorY - 15;
-  const maxNoteLines = Math.max(
-    1,
-    Math.floor((maxPanelHeight - 12) / DIETITIAN_NOTES_LINE_HEIGHT),
-  );
-
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(8.4);
-  const fallbackNote =
-    'Review patient progress and adjust the next plan based on adherence, symptoms, and feedback.';
-  const noteLines = buildDietPlanPdfNoteLines(doc, plan, notesTextWidth);
-  const visibleNotes =
-    noteLines.length > 0
-      ? noteLines.slice(0, maxNoteLines)
-      : splitLongLine(doc, fallbackNote, notesTextWidth).slice(0, maxNoteLines);
-
-  if (noteLines.length > maxNoteLines && visibleNotes.length > 0) {
-    visibleNotes[visibleNotes.length - 1] = fitTextWithEllipsis(
-      doc,
-      visibleNotes[visibleNotes.length - 1],
-      notesTextWidth,
-    );
-  }
-
-  const notesPanelHeight = Math.min(
-    maxPanelHeight,
-    Math.max(
-      DIETITIAN_NOTES_MIN_HEIGHT,
-      visibleNotes.length * DIETITIAN_NOTES_LINE_HEIGHT + 12,
-    ),
-  );
-
-  doc.setFillColor(255, 251, 235);
+  doc.setFillColor(...BRAND_GREEN_PALE);
   doc.roundedRect(
     PAGE_MARGIN,
     cursorY,
     contentWidth,
-    notesPanelHeight,
+    pointsPanelHeight,
     3,
     3,
     'F',
   );
-  doc.setDrawColor(253, 230, 138);
+  doc.setDrawColor(...BORDER_GREEN);
   doc.setLineWidth(0.2);
   doc.roundedRect(
     PAGE_MARGIN,
     cursorY,
     contentWidth,
-    notesPanelHeight,
+    pointsPanelHeight,
     3,
     3,
     'S',
   );
 
-  doc.setTextColor(120, 53, 15);
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(10);
-  doc.text('Dietitian Notes', PAGE_MARGIN + 5, cursorY + 7);
-
   doc.setTextColor(...SLATE_TEXT);
   doc.setFont('helvetica', 'normal');
-  doc.setFontSize(8.4);
-  visibleNotes.forEach((line, index) => {
-    doc.text(
-      line,
-      notesTextX,
-      cursorY + 7 + index * DIETITIAN_NOTES_LINE_HEIGHT,
-    );
-  });
+  doc.setFontSize(8.5);
+
+  let pointY = cursorY + 8;
+  for (const point of points) {
+    const wrappedLines = splitLongLine(doc, point, pointTextWidth);
+    const requiredHeight =
+      wrappedLines.length * GENERAL_GUIDELINE_LINE_HEIGHT + 2.6;
+
+    if (pointY + requiredHeight > pointBottomY) {
+      if (pointY + GENERAL_GUIDELINE_LINE_HEIGHT <= pointBottomY) {
+        doc.setFillColor(...BRAND_GREEN);
+        doc.circle(PAGE_MARGIN + 6, pointY - 1.3, 0.8, 'F');
+        doc.text(
+          fitTextWithEllipsis(doc, point, pointTextWidth),
+          PAGE_MARGIN + 10,
+          pointY,
+        );
+      }
+      break;
+    }
+
+    doc.setFillColor(...BRAND_GREEN);
+    doc.circle(PAGE_MARGIN + 6, pointY - 1.3, 0.8, 'F');
+    wrappedLines.forEach((line, index) => {
+      doc.text(
+        line,
+        PAGE_MARGIN + 10,
+        pointY + index * GENERAL_GUIDELINE_LINE_HEIGHT,
+      );
+    });
+    pointY += wrappedLines.length * GENERAL_GUIDELINE_LINE_HEIGHT + 2.6;
+  }
 };
 
 export const createDietPlanPdf = (plan: DietPlan): jsPDF => {

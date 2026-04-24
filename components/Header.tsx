@@ -23,7 +23,6 @@ const Header: React.FC<HeaderProps> = ({ currentPage = 'home' }) => {
     { name: 'BMI Calculator', href: '#bmi' },
     { name: 'Healthy Games', href: '#healthy-games' },
     { name: 'AI Assistant', href: '#ai-assistant' },
-    { name: 'Diet Plan', href: '#/diet-plan' },
     { name: 'Testimonials', href: '#testimonials' },
     { name: 'Contact', href: '#contact' },
   ];
@@ -52,22 +51,12 @@ const Header: React.FC<HeaderProps> = ({ currentPage = 'home' }) => {
               key={link.name} 
               href={link.href}
               className={`text-sm font-medium hover:text-leaf-600 transition-colors ${
-                currentPage === 'diet-plan' && link.href === '#/diet-plan'
-                  ? 'text-leaf-700'
-                  : isSolid
-                    ? 'text-slate-600'
-                    : 'text-slate-700'
+                isSolid ? 'text-slate-600' : 'text-slate-700'
               }`}
             >
               {link.name}
             </a>
           ))}
-          <a 
-            href={currentPage === 'diet-plan' ? '#/diet-plan' : '#/diet-plan'}
-            className="bg-leaf-600 hover:bg-leaf-700 text-white px-5 py-2.5 rounded-full text-sm font-medium transition-all shadow-lg shadow-leaf-200"
-          >
-            Create Plan
-          </a>
         </nav>
 
         {/* Mobile Menu Button */}
@@ -86,23 +75,12 @@ const Header: React.FC<HeaderProps> = ({ currentPage = 'home' }) => {
             <a 
               key={link.name} 
               href={link.href}
-              className={`text-slate-700 font-medium py-2 border-b border-slate-50 hover:text-leaf-600 ${
-                currentPage === 'diet-plan' && link.href === '#/diet-plan'
-                  ? 'text-leaf-700'
-                  : ''
-              }`}
+              className="text-slate-700 font-medium py-2 border-b border-slate-50 hover:text-leaf-600"
               onClick={() => setIsMobileMenuOpen(false)}
             >
               {link.name}
             </a>
           ))}
-          <a 
-            href="#/diet-plan"
-            className="bg-leaf-600 text-white text-center py-3 rounded-xl font-medium mt-2"
-            onClick={() => setIsMobileMenuOpen(false)}
-          >
-            Create Plan
-          </a>
         </div>
       )}
     </header>

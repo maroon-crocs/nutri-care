@@ -19,7 +19,7 @@ import {
 } from '../utils/dietPlan.ts';
 import {
   buildDietPlanPdfFileName,
-  buildDietPlanPdfGuidelineSections,
+  buildDietPlanPdfGeneralGuidelines,
   buildDietPlanPdfMetaLines,
   buildDietPlanPdfNoteLines,
   buildDietPlanPdfSummaryItems,
@@ -277,22 +277,17 @@ test('buildDietPlanPdfMetaLines creates compact summary copy', () => {
   assert.match(lines[1], /Food Notes: No mushrooms/);
 });
 
-test('buildDietPlanPdfGuidelineSections creates clear second-page guidance', () => {
+test('buildDietPlanPdfGeneralGuidelines creates clear second-page guidance', () => {
   const plan = createEmptyDietPlan();
   plan.patient.healthIssues = 'PCOS';
   plan.patient.allergies = 'Peanuts';
   plan.patient.medicinesSupplements = 'Vitamin D';
 
-  const sections = buildDietPlanPdfGuidelineSections(plan);
-  const titles = sections.map((section) => section.title);
-  const guidanceText = sections.flatMap((section) => section.lines).join(' ');
+  const guidelines = buildDietPlanPdfGeneralGuidelines(plan);
+  const guidanceText = guidelines.join(' ');
 
-  assert.deepEqual(titles, [
-    'Daily Meal Guidelines',
-    'Hydration And Lifestyle',
-    'Medical And Safety Notes',
-    'Follow-Up Checklist',
-  ]);
+  assert.ok(guidelines.length > 8);
+  assert.match(guidanceText, /Follow early morning, breakfast, mid-morning/);
   assert.match(guidanceText, /Avoid listed allergens completely: Peanuts/);
   assert.match(guidanceText, /Track hunger, cravings, sleep, bloating/);
 });
