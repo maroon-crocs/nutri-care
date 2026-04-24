@@ -32,6 +32,8 @@ const BRAND_GREEN_PALE = [247, 252, 248] as const;
 const SLATE_TEXT = [30, 41, 59] as const;
 const MUTED_TEXT = [100, 116, 139] as const;
 const BORDER_GREEN = [187, 222, 195] as const;
+const DIETITIAN_NOTES_LINE_HEIGHT = 4.4;
+const DIETITIAN_NOTES_MIN_HEIGHT = 28;
 
 const PDF_MEAL_SLOTS = MEAL_SLOTS.filter(
   (slot) =>
@@ -234,6 +236,39 @@ export const buildDietPlanPdfGuidelineSections = (
   ];
 };
 
+export const buildDietPlanPdfNoteLines = (
+  doc: jsPDF,
+  plan: DietPlan,
+  maxWidth: number,
+): string[] => {
+  const customNotes = [
+    plan.instructions.trim() ? `Instructions: ${plan.instructions.trim()}` : '',
+    ...plan.days
+      .filter((day) => day.note.trim())
+      .map((day) => `${day.label}: ${day.note.trim()}`),
+  ].filter(Boolean);
+
+  return customNotes.flatMap((note) => splitLongLine(doc, note, maxWidth));
+};
+
+const fitTextWithEllipsis = (
+  doc: jsPDF,
+  text: string,
+  maxWidth: number,
+): string => {
+  const ellipsis = '...';
+  let fittedText = text.trim();
+
+  while (
+    fittedText &&
+    doc.getTextWidth(`${fittedText}${ellipsis}`) > maxWidth
+  ) {
+    fittedText = fittedText.slice(0, -1).trimEnd();
+  }
+
+  return `${fittedText}${ellipsis}`;
+};
+
 const drawSummaryPanel = (
   doc: jsPDF,
   plan: DietPlan,
@@ -330,16 +365,6 @@ const drawGuidelinesPage = (
     22,
   );
 
-  const customNotes = [
-    plan.instructions.trim() ? `Instructions: ${plan.instructions.trim()}` : '',
-    ...plan.days
-      .filter((day) => day.note.trim())
-      .map((day) => `${day.label}: ${day.note.trim()}`),
-  ].filter(Boolean);
-  const noteLines = customNotes.flatMap((note) =>
-    splitLongLine(doc, note, contentWidth - 12),
-  );
-
   let cursorY = 30;
   sections.forEach((section, index) => {
     const x = PAGE_MARGIN + (index % 2) * (cardWidth + cardGap);
@@ -349,11 +374,61 @@ const drawGuidelinesPage = (
 
   cursorY += cardHeight * 2 + cardGap + 8;
 
+  const notesTextX = PAGE_MARGIN + 36;
+  const notesTextWidth = contentWidth - 41;
+  const maxPanelHeight = doc.internal.pageSize.getHeight() - cursorY - 15;
+  const maxNoteLines = Math.max(
+    1,
+    Math.floor((maxPanelHeight - 12) / DIETITIAN_NOTES_LINE_HEIGHT),
+  );
+
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(8.4);
+  const fallbackNote =
+    'Review patient progress and adjust the next plan based on adherence, symptoms, and feedback.';
+  const noteLines = buildDietPlanPdfNoteLines(doc, plan, notesTextWidth);
+  const visibleNotes =
+    noteLines.length > 0
+      ? noteLines.slice(0, maxNoteLines)
+      : splitLongLine(doc, fallbackNote, notesTextWidth).slice(0, maxNoteLines);
+
+  if (noteLines.length > maxNoteLines && visibleNotes.length > 0) {
+    visibleNotes[visibleNotes.length - 1] = fitTextWithEllipsis(
+      doc,
+      visibleNotes[visibleNotes.length - 1],
+      notesTextWidth,
+    );
+  }
+
+  const notesPanelHeight = Math.min(
+    maxPanelHeight,
+    Math.max(
+      DIETITIAN_NOTES_MIN_HEIGHT,
+      visibleNotes.length * DIETITIAN_NOTES_LINE_HEIGHT + 12,
+    ),
+  );
+
   doc.setFillColor(255, 251, 235);
-  doc.roundedRect(PAGE_MARGIN, cursorY, contentWidth, 28, 3, 3, 'F');
+  doc.roundedRect(
+    PAGE_MARGIN,
+    cursorY,
+    contentWidth,
+    notesPanelHeight,
+    3,
+    3,
+    'F',
+  );
   doc.setDrawColor(253, 230, 138);
   doc.setLineWidth(0.2);
-  doc.roundedRect(PAGE_MARGIN, cursorY, contentWidth, 28, 3, 3, 'S');
+  doc.roundedRect(
+    PAGE_MARGIN,
+    cursorY,
+    contentWidth,
+    notesPanelHeight,
+    3,
+    3,
+    'S',
+  );
 
   doc.setTextColor(120, 53, 15);
   doc.setFont('helvetica', 'bold');
@@ -363,12 +438,12 @@ const drawGuidelinesPage = (
   doc.setTextColor(...SLATE_TEXT);
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(8.4);
-  const visibleNotes =
-    noteLines.length > 0
-      ? noteLines.slice(0, 4)
-      : ['Review patient progress and adjust the next plan based on adherence, symptoms, and feedback.'];
   visibleNotes.forEach((line, index) => {
-    doc.text(line, PAGE_MARGIN + 33, cursorY + 7 + index * 4.4);
+    doc.text(
+      line,
+      notesTextX,
+      cursorY + 7 + index * DIETITIAN_NOTES_LINE_HEIGHT,
+    );
   });
 };
 

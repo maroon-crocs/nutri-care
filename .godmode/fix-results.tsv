@@ -1,0 +1,2 @@
+iteration	error_type	file	line	fix_description	lines_changed	status
+1	layout_bug	utils/dietPlanPdf.ts	374	wrap dietitian notes to actual text column and expand panel height	109	kept

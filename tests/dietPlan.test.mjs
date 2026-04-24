@@ -1,6 +1,8 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
+import { jsPDF } from 'jspdf';
+
 import {
   applyDietPlanTemplate,
   buildInstagramProfileUrl,
@@ -19,6 +21,7 @@ import {
   buildDietPlanPdfFileName,
   buildDietPlanPdfGuidelineSections,
   buildDietPlanPdfMetaLines,
+  buildDietPlanPdfNoteLines,
   buildDietPlanPdfSummaryItems,
   buildDietPlanPdfTableData,
 } from '../utils/dietPlanPdf.ts';
@@ -290,6 +293,27 @@ test('buildDietPlanPdfGuidelineSections creates clear second-page guidance', () 
   ]);
   assert.match(guidanceText, /Avoid listed allergens completely: Peanuts/);
   assert.match(guidanceText, /Track hunger, cravings, sleep, bloating/);
+});
+
+test('buildDietPlanPdfNoteLines wraps notes to the visible text column', () => {
+  const doc = new jsPDF({ format: 'a4', orientation: 'landscape', unit: 'mm' });
+  const plan = createEmptyDietPlan();
+  const pageWidth = doc.internal.pageSize.getWidth();
+  const notesTextWidth = pageWidth - 20 - 41;
+
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(8.4);
+  plan.instructions =
+    "This 7-day diet plan focuses on weight loss, incorporating both vegetarian and non-vegetarian options with practical Indian home-style meals. Ensure adequate hydration throughout day by drinking 8-10 glasses of water. Listen to your body's hunger and fullness cues.";
+  plan.days[0].note = 'Start the week with a balanced mix of protein and fiber.';
+  plan.days[1].note = 'Include omega-3 rich fish for heart health.';
+
+  const lines = buildDietPlanPdfNoteLines(doc, plan, notesTextWidth);
+
+  assert.ok(lines.length > 3);
+  assert.ok(
+    lines.every((line) => doc.getTextWidth(line) <= notesTextWidth + 0.1),
+  );
 });
 
 test('buildDietPlanPdfFileName creates a safe downloadable file name', () => {
