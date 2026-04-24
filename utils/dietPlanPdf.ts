@@ -13,6 +13,11 @@ type PdfSummaryItem = {
   value: string;
 };
 
+type PdfGuidelineSection = {
+  title: string;
+  lines: string[];
+};
+
 type AutoTableDoc = jsPDF & {
   lastAutoTable?: {
     finalY: number;
@@ -24,31 +29,20 @@ const BRAND_GREEN = [22, 163, 74] as const;
 const BRAND_GREEN_DARK = [20, 83, 45] as const;
 const BRAND_GREEN_SOFT = [240, 253, 244] as const;
 const BRAND_GREEN_PALE = [247, 252, 248] as const;
-const BRAND_GOLD = [245, 158, 11] as const;
 const SLATE_TEXT = [30, 41, 59] as const;
 const MUTED_TEXT = [100, 116, 139] as const;
 const BORDER_GREEN = [187, 222, 195] as const;
 
+const PDF_MEAL_SLOTS = MEAL_SLOTS.filter(
+  (slot) =>
+    slot.id === 'breakfast' ||
+    slot.id === 'lunch' ||
+    slot.id === 'eveningSnack' ||
+    slot.id === 'dinner',
+);
+
 const splitLongLine = (doc: jsPDF, text: string, maxWidth: number): string[] =>
   text.trim() ? doc.splitTextToSize(text.trim(), maxWidth) : [];
-
-const getLastAutoTableY = (doc: AutoTableDoc, fallback: number): number =>
-  doc.lastAutoTable?.finalY ?? fallback;
-
-const ensurePageSpace = (
-  doc: jsPDF,
-  cursorY: number,
-  requiredHeight: number,
-): number => {
-  const pageHeight = doc.internal.pageSize.getHeight();
-
-  if (cursorY + requiredHeight <= pageHeight - PAGE_MARGIN) {
-    return cursorY;
-  }
-
-  doc.addPage();
-  return PAGE_MARGIN + 4;
-};
 
 const drawNutriGuideLogo = (
   doc: jsPDF,
@@ -144,10 +138,10 @@ export const buildDietPlanPdfFileName = (plan: DietPlan): string => {
 };
 
 export const buildDietPlanPdfTableData = (plan: DietPlan): PdfTableData => ({
-  head: [['Day', ...MEAL_SLOTS.map((slot) => slot.label)]],
+  head: [['Day', ...PDF_MEAL_SLOTS.map((slot) => slot.label)]],
   body: plan.days.map((day) => [
     day.label,
-    ...MEAL_SLOTS.map((slot) => day.meals[slot.id].trim() || 'As discussed'),
+    ...PDF_MEAL_SLOTS.map((slot) => day.meals[slot.id].trim() || 'As discussed'),
   ]),
 });
 
@@ -193,6 +187,53 @@ export const buildDietPlanPdfMetaLines = (plan: DietPlan): string[] => {
   return lines;
 };
 
+export const buildDietPlanPdfGuidelineSections = (
+  plan: DietPlan,
+): PdfGuidelineSection[] => {
+  const healthLines = [
+    plan.patient.healthIssues.trim()
+      ? `Health issue noted: ${plan.patient.healthIssues.trim()}. Keep changes conservative and review symptoms.`
+      : 'Review any medical condition before changing portions or food groups.',
+    plan.patient.allergies.trim()
+      ? `Avoid listed allergens completely: ${plan.patient.allergies.trim()}.`
+      : 'Confirm allergies or intolerances before sending the plan.',
+    plan.patient.medicinesSupplements.trim()
+      ? `Medicine/supplement timing noted: ${plan.patient.medicinesSupplements.trim()}. Keep timing consistent with medical advice.`
+      : 'Ask the patient to report any medicines or supplements during follow-up.',
+  ];
+
+  return [
+    {
+      title: 'Daily Meal Guidelines',
+      lines: [
+        'Follow breakfast, lunch, evening snack, and dinner in the day-wise order shown on page 1.',
+        'Keep meal timing consistent and avoid long gaps between meals.',
+        'Use home-style portions first; adjust roti, rice, or snack quantity during review.',
+      ],
+    },
+    {
+      title: 'Hydration And Lifestyle',
+      lines: [
+        'Drink 2.5-3 liters water daily unless restricted by a doctor.',
+        'Keep oil, sugar, fried food, packaged snacks, and sweet drinks controlled.',
+        'Add a 10-15 minute walk after major meals when suitable for the patient.',
+      ],
+    },
+    {
+      title: 'Medical And Safety Notes',
+      lines: healthLines,
+    },
+    {
+      title: 'Follow-Up Checklist',
+      lines: [
+        'Track hunger, cravings, sleep, bloating, energy, and digestion for the week.',
+        'Share weight or measurements only on the agreed follow-up day, not daily.',
+        'Stop or review the plan if discomfort, dizziness, allergy symptoms, or sugar crashes occur.',
+      ],
+    },
+  ];
+};
+
 const drawSummaryPanel = (
   doc: jsPDF,
   plan: DietPlan,
@@ -226,49 +267,109 @@ const drawSummaryPanel = (
   return y + panelHeight + 4;
 };
 
-const drawNotesPanel = (
+const drawGuidelineCard = (
+  doc: jsPDF,
+  section: PdfGuidelineSection,
+  x: number,
+  y: number,
+  width: number,
+  height: number,
+): void => {
+  doc.setFillColor(...BRAND_GREEN_PALE);
+  doc.roundedRect(x, y, width, height, 3, 3, 'F');
+  doc.setDrawColor(...BORDER_GREEN);
+  doc.setLineWidth(0.2);
+  doc.roundedRect(x, y, width, height, 3, 3, 'S');
+
+  doc.setTextColor(...BRAND_GREEN_DARK);
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(10);
+  doc.text(section.title, x + 5, y + 7);
+
+  doc.setTextColor(...SLATE_TEXT);
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(8.5);
+
+  let lineY = y + 14;
+  section.lines.forEach((line) => {
+    const wrappedLines = splitLongLine(doc, line, width - 14);
+    doc.setFillColor(...BRAND_GREEN);
+    doc.circle(x + 6, lineY - 1.3, 0.8, 'F');
+    wrappedLines.forEach((wrappedLine, index) => {
+      doc.text(wrappedLine, x + 10, lineY + index * 4.2);
+    });
+    lineY += wrappedLines.length * 4.2 + 3;
+  });
+};
+
+const drawGuidelinesPage = (
   doc: jsPDF,
   plan: DietPlan,
   pageWidth: number,
-  cursorY: number,
-): number => {
-  const notes = [
+): void => {
+  const contentWidth = pageWidth - PAGE_MARGIN * 2;
+  const cardGap = 6;
+  const cardWidth = (contentWidth - cardGap) / 2;
+  const cardHeight = 48;
+  const sections = buildDietPlanPdfGuidelineSections(plan);
+
+  doc.addPage();
+  drawNutriGuideLogo(doc, PAGE_MARGIN, 8, 13);
+
+  doc.setTextColor(...BRAND_GREEN_DARK);
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(15);
+  doc.text('Plan Guidelines', PAGE_MARGIN + 17, 16);
+
+  doc.setTextColor(...MUTED_TEXT);
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(8.5);
+  doc.text(
+    'Use these rules while editing, sending, and reviewing the diet plan.',
+    PAGE_MARGIN + 17,
+    22,
+  );
+
+  const customNotes = [
     plan.instructions.trim() ? `Instructions: ${plan.instructions.trim()}` : '',
     ...plan.days
       .filter((day) => day.note.trim())
       .map((day) => `${day.label}: ${day.note.trim()}`),
   ].filter(Boolean);
-
-  if (notes.length === 0) {
-    return cursorY;
-  }
-
-  const contentWidth = pageWidth - PAGE_MARGIN * 2;
-  const noteLines = notes.flatMap((note) =>
-    splitLongLine(doc, note, contentWidth - 10),
+  const noteLines = customNotes.flatMap((note) =>
+    splitLongLine(doc, note, contentWidth - 12),
   );
-  const panelHeight = Math.max(14, noteLines.length * 4.2 + 10);
-  let y = ensurePageSpace(doc, cursorY, panelHeight + 2);
+
+  let cursorY = 30;
+  sections.forEach((section, index) => {
+    const x = PAGE_MARGIN + (index % 2) * (cardWidth + cardGap);
+    const y = cursorY + Math.floor(index / 2) * (cardHeight + cardGap);
+    drawGuidelineCard(doc, section, x, y, cardWidth, cardHeight);
+  });
+
+  cursorY += cardHeight * 2 + cardGap + 8;
 
   doc.setFillColor(255, 251, 235);
-  doc.roundedRect(PAGE_MARGIN, y, contentWidth, panelHeight, 3, 3, 'F');
+  doc.roundedRect(PAGE_MARGIN, cursorY, contentWidth, 28, 3, 3, 'F');
   doc.setDrawColor(253, 230, 138);
   doc.setLineWidth(0.2);
-  doc.roundedRect(PAGE_MARGIN, y, contentWidth, panelHeight, 3, 3, 'S');
+  doc.roundedRect(PAGE_MARGIN, cursorY, contentWidth, 28, 3, 3, 'S');
 
   doc.setTextColor(120, 53, 15);
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(8.5);
-  doc.text('Notes', PAGE_MARGIN + 5, y + 5.8);
+  doc.setFontSize(10);
+  doc.text('Dietitian Notes', PAGE_MARGIN + 5, cursorY + 7);
 
   doc.setTextColor(...SLATE_TEXT);
   doc.setFont('helvetica', 'normal');
-  doc.setFontSize(7.8);
-  noteLines.forEach((line, index) => {
-    doc.text(line, PAGE_MARGIN + 20, y + 5.8 + index * 4.2);
+  doc.setFontSize(8.4);
+  const visibleNotes =
+    noteLines.length > 0
+      ? noteLines.slice(0, 4)
+      : ['Review patient progress and adjust the next plan based on adherence, symptoms, and feedback.'];
+  visibleNotes.forEach((line, index) => {
+    doc.text(line, PAGE_MARGIN + 33, cursorY + 7 + index * 4.4);
   });
-
-  return y + panelHeight + 4;
 };
 
 export const createDietPlanPdf = (plan: DietPlan): jsPDF => {
@@ -327,53 +428,39 @@ export const createDietPlanPdf = (plan: DietPlan): jsPDF => {
         textColor: [...BRAND_GREEN_DARK],
         valign: 'middle',
       },
-      1: { cellWidth: 42 },
-      2: { cellWidth: 42 },
-      3: { cellWidth: 42 },
-      4: { cellWidth: 42 },
-      5: { cellWidth: 42 },
-      6: { cellWidth: contentWidth - 22 - 42 * 5 },
-    },
-    didDrawPage: ({ pageNumber }) => {
-      doc.setFont('helvetica', 'normal');
-      doc.setFontSize(8);
-      doc.setTextColor(...MUTED_TEXT);
-      doc.text(
-        `NutriGuide | Page ${pageNumber}`,
-        PAGE_MARGIN,
-        pageHeight - 6,
-      );
-      doc.text(
-        'Editable dietitian draft',
-        pageWidth - PAGE_MARGIN,
-        pageHeight - 6,
-        { align: 'right' },
-      );
+      1: { cellWidth: 64 },
+      2: { cellWidth: 64 },
+      3: { cellWidth: 64 },
+      4: { cellWidth: contentWidth - 22 - 64 * 3 },
     },
     theme: 'grid',
   });
 
-  drawNotesPanel(doc, plan, pageWidth, getLastAutoTableY(doc, tableStartY) + 5);
+  drawGuidelinesPage(doc, plan, pageWidth);
 
   const totalPages = doc.getNumberOfPages();
 
   for (let pageNumber = 1; pageNumber <= totalPages; pageNumber += 1) {
     doc.setPage(pageNumber);
-    if (pageNumber > 1) {
-      drawNutriGuideLogo(doc, PAGE_MARGIN, 6, 9);
-      doc.setFont('helvetica', 'bold');
-      doc.setFontSize(9);
-      doc.setTextColor(...BRAND_GREEN_DARK);
-      doc.text(plan.title.trim() || 'Weekly Diet Plan', PAGE_MARGIN + 12, 12);
-    }
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(8);
     doc.setTextColor(...MUTED_TEXT);
+    doc.text(
+      `NutriGuide | Page ${pageNumber}`,
+      PAGE_MARGIN,
+      pageHeight - 6,
+    );
     doc.text(
       `Page ${pageNumber} of ${totalPages}`,
       pageWidth / 2,
       pageHeight - 6,
       { align: 'center' },
+    );
+    doc.text(
+      'Editable dietitian draft',
+      pageWidth - PAGE_MARGIN,
+      pageHeight - 6,
+      { align: 'right' },
     );
   }
 

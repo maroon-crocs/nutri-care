@@ -53,6 +53,9 @@ rounds:
   - round: 16
     tasks:
       - task-16
+  - round: 17
+    tasks:
+      - task-17
 tasks:
   - id: task-01
     title: Add diet plan types and helper functions
@@ -231,6 +234,17 @@ tasks:
       - tests/dietPlan.test.mjs
     depends_on:
       - task-15
+    agent: false
+    test: npm run build
+    done_when: npm run build
+  - id: task-17
+    title: Remove early and mid-morning PDF columns and add guideline page
+    skill: build
+    files:
+      - utils/dietPlanPdf.ts
+      - tests/dietPlan.test.mjs
+    depends_on:
+      - task-16
     agent: false
     test: npm run build
     done_when: npm run build

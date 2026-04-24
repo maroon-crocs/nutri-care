@@ -17,6 +17,7 @@ import {
 } from '../utils/dietPlan.ts';
 import {
   buildDietPlanPdfFileName,
+  buildDietPlanPdfGuidelineSections,
   buildDietPlanPdfMetaLines,
   buildDietPlanPdfSummaryItems,
   buildDietPlanPdfTableData,
@@ -197,17 +198,34 @@ test('mergeGeneratedDietPlan keeps patient details and normalizes meal slots', (
 
 test('buildDietPlanPdfTableData creates a weekly table with meal columns', () => {
   const plan = createEmptyDietPlan();
+  plan.days[0].meals.earlyMorning = 'Warm lemon water';
   plan.days[0].meals.breakfast = 'Vegetable poha';
+  plan.days[0].meals.midMorning = 'Fruit bowl';
   plan.days[0].meals.lunch = 'Dal roti sabzi';
+  plan.days[0].meals.eveningSnack = 'Roasted chana';
+  plan.days[0].meals.dinner = 'Khichdi';
 
   const table = buildDietPlanPdfTableData(plan);
 
   assert.equal(table.head[0][0], 'Day');
-  assert.equal(table.head[0].length, 7);
+  assert.deepEqual(table.head[0], [
+    'Day',
+    'Breakfast',
+    'Lunch',
+    'Evening Snack',
+    'Dinner',
+  ]);
   assert.equal(table.body.length, 7);
   assert.equal(table.body[0][0], 'Monday');
-  assert.equal(table.body[0][2], 'Vegetable poha');
-  assert.equal(table.body[0][4], 'Dal roti sabzi');
+  assert.deepEqual(table.body[0], [
+    'Monday',
+    'Vegetable poha',
+    'Dal roti sabzi',
+    'Roasted chana',
+    'Khichdi',
+  ]);
+  assert.doesNotMatch(table.head[0].join(' '), /Early Morning|Mid-Morning/);
+  assert.doesNotMatch(table.body[0].join(' '), /Warm lemon water|Fruit bowl/);
 });
 
 test('buildDietPlanPdfSummaryItems includes extended intake details', () => {
@@ -252,6 +270,26 @@ test('buildDietPlanPdfMetaLines creates compact summary copy', () => {
   assert.match(lines[0], /Diet: Veg/);
   assert.match(lines[0], /Goal: Fat loss/);
   assert.match(lines[1], /Food Notes: No mushrooms/);
+});
+
+test('buildDietPlanPdfGuidelineSections creates clear second-page guidance', () => {
+  const plan = createEmptyDietPlan();
+  plan.patient.healthIssues = 'PCOS';
+  plan.patient.allergies = 'Peanuts';
+  plan.patient.medicinesSupplements = 'Vitamin D';
+
+  const sections = buildDietPlanPdfGuidelineSections(plan);
+  const titles = sections.map((section) => section.title);
+  const guidanceText = sections.flatMap((section) => section.lines).join(' ');
+
+  assert.deepEqual(titles, [
+    'Daily Meal Guidelines',
+    'Hydration And Lifestyle',
+    'Medical And Safety Notes',
+    'Follow-Up Checklist',
+  ]);
+  assert.match(guidanceText, /Avoid listed allergens completely: Peanuts/);
+  assert.match(guidanceText, /Track hunger, cravings, sleep, bloating/);
 });
 
 test('buildDietPlanPdfFileName creates a safe downloadable file name', () => {
