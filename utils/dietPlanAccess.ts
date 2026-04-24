@@ -1,4 +1,4 @@
-export const DIET_PLAN_ACCESS_CODE = 'NUTRI-PLAN-2026';
+export const DIET_PLAN_ACCESS_CODE = 'Roshan_2026';
 export const DIET_PLAN_ROUTE_HASH = '#/diet-plan';
 
 const normalizeAccessCode = (value: string): string =>

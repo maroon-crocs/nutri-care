@@ -329,7 +329,7 @@ test('buildDietPlanPdfFileName creates a safe downloadable file name', () => {
 test('diet plan access helper unlocks the hidden route from admin code', () => {
   assert.equal(containsDietPlanAccessCode('hello'), false);
   assert.equal(containsDietPlanAccessCode(`code ${DIET_PLAN_ACCESS_CODE}`), true);
-  assert.equal(containsDietPlanAccessCode('nutri plan 2026'), true);
+  assert.equal(containsDietPlanAccessCode('roshan 2026'), true);
 
   const url = buildDietPlanAccessUrl('https://nutricare4u.com', '/');
   const response = buildDietPlanAccessResponse(
