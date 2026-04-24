@@ -25,6 +25,12 @@ import {
   buildDietPlanPdfSummaryItems,
   buildDietPlanPdfTableData,
 } from '../utils/dietPlanPdf.ts';
+import {
+  buildDietPlanAccessResponse,
+  buildDietPlanAccessUrl,
+  containsDietPlanAccessCode,
+  DIET_PLAN_ACCESS_CODE,
+} from '../utils/dietPlanAccess.ts';
 
 test('createEmptyDietPlan creates seven days with printable meal slots', () => {
   const plan = createEmptyDietPlan();
@@ -318,4 +324,21 @@ test('buildDietPlanPdfFileName creates a safe downloadable file name', () => {
   plan.patient.name = 'Mary Jane';
 
   assert.equal(buildDietPlanPdfFileName(plan), 'mary-jane-diet-plan.pdf');
+});
+
+test('diet plan access helper unlocks the hidden route from admin code', () => {
+  assert.equal(containsDietPlanAccessCode('hello'), false);
+  assert.equal(containsDietPlanAccessCode(`code ${DIET_PLAN_ACCESS_CODE}`), true);
+  assert.equal(containsDietPlanAccessCode('nutri plan 2026'), true);
+
+  const url = buildDietPlanAccessUrl('https://nutricare4u.com', '/');
+  const response = buildDietPlanAccessResponse(
+    `please unlock ${DIET_PLAN_ACCESS_CODE}`,
+    'https://nutricare4u.com',
+    '/',
+  );
+
+  assert.equal(url, 'https://nutricare4u.com/#/diet-plan');
+  assert.match(response ?? '', /Admin diet plan link unlocked/);
+  assert.match(response ?? '', /https:\/\/nutricare4u\.com\/#\/diet-plan/);
 });

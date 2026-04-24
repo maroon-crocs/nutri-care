@@ -4,6 +4,7 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { ChatMessage, BMIResult } from '../types';
 import { sendMessageToGemini } from '../services/geminiService';
+import { buildDietPlanAccessResponse } from '../utils/dietPlanAccess';
 
 interface AIAssistantProps {
   bmiResult: BMIResult | null;
@@ -37,6 +38,22 @@ const AIAssistant: React.FC<AIAssistantProps> = ({ bmiResult }) => {
     const userMessage: ChatMessage = { role: 'user', text: input };
     setMessages(prev => [...prev, userMessage]);
     setInput('');
+
+    const dietPlanAccessResponse = buildDietPlanAccessResponse(
+      userMessage.text,
+      window.location.origin,
+      window.location.pathname,
+    );
+
+    if (dietPlanAccessResponse) {
+      const botMessage: ChatMessage = {
+        role: 'model',
+        text: dietPlanAccessResponse,
+      };
+      setMessages(prev => [...prev, botMessage]);
+      return;
+    }
+
     setIsTyping(true);
 
     try {
