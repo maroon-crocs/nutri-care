@@ -14,3 +14,4 @@ round	task_id	agent_time_ms	status	conflicted_file	notes
 13	task-13	0	merged		extended intake helper tests passed
 14	task-14	0	merged		Worker dry-run passed with local wrangler log permission warning
 15	task-15	0	merged		production build passed
+16	task-16	0	merged		branded light-color weekly table PDF verified with tests and sample export

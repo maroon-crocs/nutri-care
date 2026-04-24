@@ -8,10 +8,130 @@ type PdfTableData = {
   head: string[][];
 };
 
+type PdfSummaryItem = {
+  label: string;
+  value: string;
+};
+
+type AutoTableDoc = jsPDF & {
+  lastAutoTable?: {
+    finalY: number;
+  };
+};
+
 const PAGE_MARGIN = 10;
-const TITLE_Y = 14;
-const META_START_Y = 21;
-const META_LINE_HEIGHT = 5;
+const BRAND_GREEN = [22, 163, 74] as const;
+const BRAND_GREEN_DARK = [20, 83, 45] as const;
+const BRAND_GREEN_SOFT = [240, 253, 244] as const;
+const BRAND_GREEN_PALE = [247, 252, 248] as const;
+const BRAND_GOLD = [245, 158, 11] as const;
+const SLATE_TEXT = [30, 41, 59] as const;
+const MUTED_TEXT = [100, 116, 139] as const;
+const BORDER_GREEN = [187, 222, 195] as const;
+
+const splitLongLine = (doc: jsPDF, text: string, maxWidth: number): string[] =>
+  text.trim() ? doc.splitTextToSize(text.trim(), maxWidth) : [];
+
+const getLastAutoTableY = (doc: AutoTableDoc, fallback: number): number =>
+  doc.lastAutoTable?.finalY ?? fallback;
+
+const ensurePageSpace = (
+  doc: jsPDF,
+  cursorY: number,
+  requiredHeight: number,
+): number => {
+  const pageHeight = doc.internal.pageSize.getHeight();
+
+  if (cursorY + requiredHeight <= pageHeight - PAGE_MARGIN) {
+    return cursorY;
+  }
+
+  doc.addPage();
+  return PAGE_MARGIN + 4;
+};
+
+const drawNutriGuideLogo = (
+  doc: jsPDF,
+  x: number,
+  y: number,
+  size: number,
+): void => {
+  doc.setFillColor(...BRAND_GREEN);
+  doc.roundedRect(x, y, size, size, 4, 4, 'F');
+
+  doc.setFillColor(255, 255, 255);
+  doc.ellipse(x + size * 0.45, y + size * 0.58, size * 0.22, size * 0.32, 'F');
+  doc.setFillColor(220, 252, 231);
+  doc.ellipse(x + size * 0.62, y + size * 0.4, size * 0.17, size * 0.27, 'F');
+  doc.setDrawColor(255, 255, 255);
+  doc.setLineWidth(0.7);
+  doc.line(x + size * 0.35, y + size * 0.72, x + size * 0.68, y + size * 0.28);
+};
+
+const drawBrandHeader = (
+  doc: jsPDF,
+  plan: DietPlan,
+  pageWidth: number,
+): void => {
+  const contentWidth = pageWidth - PAGE_MARGIN * 2;
+  const headerY = 7;
+
+  doc.setFillColor(...BRAND_GREEN_PALE);
+  doc.roundedRect(PAGE_MARGIN, headerY, contentWidth, 25, 4, 4, 'F');
+  doc.setDrawColor(...BORDER_GREEN);
+  doc.setLineWidth(0.2);
+  doc.roundedRect(PAGE_MARGIN, headerY, contentWidth, 25, 4, 4, 'S');
+
+  drawNutriGuideLogo(doc, PAGE_MARGIN + 5, headerY + 5, 15);
+
+  doc.setTextColor(...BRAND_GREEN_DARK);
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(14);
+  doc.text('NutriGuide', PAGE_MARGIN + 24, headerY + 11);
+
+  doc.setTextColor(...MUTED_TEXT);
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(8);
+  doc.text('Personalized Nutrition Expert', PAGE_MARGIN + 24, headerY + 16.5);
+
+  doc.setTextColor(...SLATE_TEXT);
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(16);
+  doc.text(plan.title.trim() || 'Weekly Diet Plan', pageWidth / 2, headerY + 11.5, {
+    align: 'center',
+  });
+
+  const subtitle = [
+    plan.patient.dietType.trim(),
+    plan.patient.goal.trim(),
+    plan.patient.startDate
+      ? `Starts ${new Date(plan.patient.startDate).toLocaleDateString('en-IN')}`
+      : '',
+  ]
+    .filter(Boolean)
+    .join(' | ');
+
+  doc.setTextColor(...MUTED_TEXT);
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(8.4);
+  doc.text(subtitle || '7-day meal table', pageWidth / 2, headerY + 17, {
+    align: 'center',
+  });
+
+  doc.setTextColor(...BRAND_GREEN_DARK);
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(8.6);
+  doc.text(plan.dietitianName.trim() || 'Dietitian', pageWidth - PAGE_MARGIN - 5, headerY + 11.5, {
+    align: 'right',
+  });
+
+  doc.setTextColor(...MUTED_TEXT);
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(7.6);
+  doc.text('Prepared by', pageWidth - PAGE_MARGIN - 5, headerY + 16.5, {
+    align: 'right',
+  });
+};
 
 export const buildDietPlanPdfFileName = (plan: DietPlan): string => {
   const patientName = plan.patient.name.trim() || 'patient';
@@ -27,56 +147,128 @@ export const buildDietPlanPdfTableData = (plan: DietPlan): PdfTableData => ({
   head: [['Day', ...MEAL_SLOTS.map((slot) => slot.label)]],
   body: plan.days.map((day) => [
     day.label,
-    ...MEAL_SLOTS.map((slot) => day.meals[slot.id].trim()),
+    ...MEAL_SLOTS.map((slot) => day.meals[slot.id].trim() || 'As discussed'),
   ]),
 });
 
-export const buildDietPlanPdfMetaLines = (plan: DietPlan): string[] => {
+export const buildDietPlanPdfSummaryItems = (
+  plan: DietPlan,
+): PdfSummaryItem[] => {
   const workoutSummary = getWorkoutSummary(plan.patient);
 
   return [
-    [
-      `Patient: ${plan.patient.name.trim() || 'Patient'}`,
-      plan.patient.age.trim() ? `Age: ${plan.patient.age.trim()}` : '',
-      plan.patient.height.trim() ? `Height: ${plan.patient.height.trim()}` : '',
-      plan.patient.weight.trim() ? `Weight: ${plan.patient.weight.trim()}` : '',
-      plan.patient.dietType.trim()
-        ? `Diet Type: ${plan.patient.dietType.trim()}`
-        : '',
-    ]
-      .filter(Boolean)
+    { label: 'Patient', value: plan.patient.name.trim() || 'Patient' },
+    { label: 'Age', value: plan.patient.age.trim() },
+    { label: 'Height', value: plan.patient.height.trim() },
+    { label: 'Weight', value: plan.patient.weight.trim() },
+    { label: 'Diet', value: plan.patient.dietType.trim() },
+    { label: 'Goal', value: plan.patient.goal.trim() },
+    { label: 'Workout', value: workoutSummary },
+    { label: 'Health', value: plan.patient.healthIssues.trim() },
+    { label: 'Allergies', value: plan.patient.allergies.trim() },
+    {
+      label: 'Medicines/Supplements',
+      value: plan.patient.medicinesSupplements.trim(),
+    },
+  ].filter((item) => item.value);
+};
+
+export const buildDietPlanPdfMetaLines = (plan: DietPlan): string[] => {
+  const summaryItems = buildDietPlanPdfSummaryItems(plan);
+  const lines = [
+    summaryItems
+      .slice(0, 5)
+      .map((item) => `${item.label}: ${item.value}`)
       .join(' | '),
-    [
-      plan.patient.goal.trim() ? `Goal: ${plan.patient.goal.trim()}` : '',
-      workoutSummary ? `Workout: ${workoutSummary}` : '',
-      plan.patient.startDate
-        ? `Start Date: ${new Date(plan.patient.startDate).toLocaleDateString('en-IN')}`
-        : '',
-      `Prepared by: ${plan.dietitianName.trim() || 'Dietitian'}`,
-    ]
-      .filter(Boolean)
-      .join(' | '),
-    [
-      plan.patient.allergies.trim()
-        ? `Allergies: ${plan.patient.allergies.trim()}`
-        : '',
-      plan.patient.healthIssues.trim()
-        ? `Health Issues: ${plan.patient.healthIssues.trim()}`
-        : '',
-    ]
-      .filter(Boolean)
-      .join(' | '),
-    [
-      plan.patient.medicinesSupplements.trim()
-        ? `Medicines/Supplements: ${plan.patient.medicinesSupplements.trim()}`
-        : '',
-      plan.patient.preferences.trim()
-        ? `Food Notes: ${plan.patient.preferences.trim()}`
-        : '',
-    ]
-      .filter(Boolean)
+    summaryItems
+      .slice(5)
+      .map((item) => `${item.label}: ${item.value}`)
       .join(' | '),
   ].filter(Boolean);
+
+  if (plan.patient.preferences.trim()) {
+    lines.push(`Food Notes: ${plan.patient.preferences.trim()}`);
+  }
+
+  return lines;
+};
+
+const drawSummaryPanel = (
+  doc: jsPDF,
+  plan: DietPlan,
+  pageWidth: number,
+  y: number,
+): number => {
+  const contentWidth = pageWidth - PAGE_MARGIN * 2;
+  const metaLines = buildDietPlanPdfMetaLines(plan).flatMap((line) =>
+    splitLongLine(doc, line, contentWidth - 12),
+  );
+  const panelHeight = Math.max(12, metaLines.length * 4.2 + 8);
+
+  doc.setFillColor(...BRAND_GREEN_SOFT);
+  doc.roundedRect(PAGE_MARGIN, y, contentWidth, panelHeight, 3, 3, 'F');
+  doc.setDrawColor(...BORDER_GREEN);
+  doc.setLineWidth(0.2);
+  doc.roundedRect(PAGE_MARGIN, y, contentWidth, panelHeight, 3, 3, 'S');
+
+  doc.setTextColor(...BRAND_GREEN_DARK);
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(8.1);
+  doc.text('Patient Summary', PAGE_MARGIN + 5, y + 5.3);
+
+  doc.setTextColor(...SLATE_TEXT);
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(7.8);
+  metaLines.forEach((line, index) => {
+    doc.text(line, PAGE_MARGIN + 36, y + 5.3 + index * 4.2);
+  });
+
+  return y + panelHeight + 4;
+};
+
+const drawNotesPanel = (
+  doc: jsPDF,
+  plan: DietPlan,
+  pageWidth: number,
+  cursorY: number,
+): number => {
+  const notes = [
+    plan.instructions.trim() ? `Instructions: ${plan.instructions.trim()}` : '',
+    ...plan.days
+      .filter((day) => day.note.trim())
+      .map((day) => `${day.label}: ${day.note.trim()}`),
+  ].filter(Boolean);
+
+  if (notes.length === 0) {
+    return cursorY;
+  }
+
+  const contentWidth = pageWidth - PAGE_MARGIN * 2;
+  const noteLines = notes.flatMap((note) =>
+    splitLongLine(doc, note, contentWidth - 10),
+  );
+  const panelHeight = Math.max(14, noteLines.length * 4.2 + 10);
+  let y = ensurePageSpace(doc, cursorY, panelHeight + 2);
+
+  doc.setFillColor(255, 251, 235);
+  doc.roundedRect(PAGE_MARGIN, y, contentWidth, panelHeight, 3, 3, 'F');
+  doc.setDrawColor(253, 230, 138);
+  doc.setLineWidth(0.2);
+  doc.roundedRect(PAGE_MARGIN, y, contentWidth, panelHeight, 3, 3, 'S');
+
+  doc.setTextColor(120, 53, 15);
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(8.5);
+  doc.text('Notes', PAGE_MARGIN + 5, y + 5.8);
+
+  doc.setTextColor(...SLATE_TEXT);
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(7.8);
+  noteLines.forEach((line, index) => {
+    doc.text(line, PAGE_MARGIN + 20, y + 5.8 + index * 4.2);
+  });
+
+  return y + panelHeight + 4;
 };
 
 export const createDietPlanPdf = (plan: DietPlan): jsPDF => {
@@ -85,79 +277,105 @@ export const createDietPlanPdf = (plan: DietPlan): jsPDF => {
     format: 'a4',
     orientation: 'landscape',
     unit: 'mm',
-  });
+  }) as AutoTableDoc;
 
   const pageWidth = doc.internal.pageSize.getWidth();
   const pageHeight = doc.internal.pageSize.getHeight();
-  const { head, body } = buildDietPlanPdfTableData(plan);
+  const contentWidth = pageWidth - PAGE_MARGIN * 2;
+  const tableData = buildDietPlanPdfTableData(plan);
 
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(17);
-  doc.text(plan.title.trim() || 'Weekly Diet Plan', pageWidth / 2, TITLE_Y, {
-    align: 'center',
-  });
-
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(9.5);
-  const metaLines = buildDietPlanPdfMetaLines(plan).flatMap((line) =>
-    doc.splitTextToSize(line, pageWidth - PAGE_MARGIN * 2),
-  );
-
-  metaLines.forEach((line, index) => {
-    doc.text(line, PAGE_MARGIN, META_START_Y + index * META_LINE_HEIGHT);
-  });
-
-  const tableStartY = META_START_Y + metaLines.length * META_LINE_HEIGHT + 2;
+  drawBrandHeader(doc, plan, pageWidth);
+  const tableStartY = drawSummaryPanel(doc, plan, pageWidth, 36);
 
   autoTable(doc, {
-    body,
-    head,
-    margin: { bottom: 12, left: PAGE_MARGIN, right: PAGE_MARGIN, top: PAGE_MARGIN },
+    body: tableData.body,
+    head: tableData.head,
+    margin: { bottom: 13, left: PAGE_MARGIN, right: PAGE_MARGIN, top: 18 },
     rowPageBreak: 'auto',
     showHead: 'everyPage',
     startY: tableStartY,
     styles: {
-      cellPadding: 1.8,
+      cellPadding: 1.2,
       font: 'helvetica',
-      fontSize: 8.4,
-      lineColor: [65, 65, 65],
+      fontSize: 7.15,
+      lineColor: [...BORDER_GREEN],
       lineWidth: 0.18,
       overflow: 'linebreak',
-      textColor: [20, 20, 20],
+      textColor: [...SLATE_TEXT],
       valign: 'top',
     },
     headStyles: {
-      fillColor: [128, 128, 128],
+      fillColor: [...BRAND_GREEN],
       fontStyle: 'bold',
       halign: 'center',
-      minCellHeight: 10,
+      minCellHeight: 8.5,
       textColor: [255, 255, 255],
       valign: 'middle',
     },
     bodyStyles: {
-      minCellHeight: 20,
+      minCellHeight: 14.2,
+    },
+    alternateRowStyles: {
+      fillColor: [...BRAND_GREEN_PALE],
     },
     columnStyles: {
-      0: { cellWidth: 25, fontStyle: 'bold', halign: 'center', valign: 'middle' },
+      0: {
+        cellWidth: 22,
+        fillColor: [...BRAND_GREEN_SOFT],
+        fontStyle: 'bold',
+        halign: 'center',
+        textColor: [...BRAND_GREEN_DARK],
+        valign: 'middle',
+      },
       1: { cellWidth: 42 },
       2: { cellWidth: 42 },
       3: { cellWidth: 42 },
       4: { cellWidth: 42 },
       5: { cellWidth: 42 },
-      6: { cellWidth: 42 },
+      6: { cellWidth: contentWidth - 22 - 42 * 5 },
     },
     didDrawPage: ({ pageNumber }) => {
       doc.setFont('helvetica', 'normal');
       doc.setFontSize(8);
+      doc.setTextColor(...MUTED_TEXT);
       doc.text(
-        `Page ${pageNumber}`,
+        `NutriGuide | Page ${pageNumber}`,
+        PAGE_MARGIN,
+        pageHeight - 6,
+      );
+      doc.text(
+        'Editable dietitian draft',
         pageWidth - PAGE_MARGIN,
-        pageHeight - 5,
+        pageHeight - 6,
         { align: 'right' },
       );
     },
     theme: 'grid',
   });
+
+  drawNotesPanel(doc, plan, pageWidth, getLastAutoTableY(doc, tableStartY) + 5);
+
+  const totalPages = doc.getNumberOfPages();
+
+  for (let pageNumber = 1; pageNumber <= totalPages; pageNumber += 1) {
+    doc.setPage(pageNumber);
+    if (pageNumber > 1) {
+      drawNutriGuideLogo(doc, PAGE_MARGIN, 6, 9);
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(9);
+      doc.setTextColor(...BRAND_GREEN_DARK);
+      doc.text(plan.title.trim() || 'Weekly Diet Plan', PAGE_MARGIN + 12, 12);
+    }
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(8);
+    doc.setTextColor(...MUTED_TEXT);
+    doc.text(
+      `Page ${pageNumber} of ${totalPages}`,
+      pageWidth / 2,
+      pageHeight - 6,
+      { align: 'center' },
+    );
+  }
 
   return doc;
 };

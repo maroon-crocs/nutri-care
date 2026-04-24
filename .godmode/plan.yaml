@@ -50,6 +50,9 @@ rounds:
   - round: 15
     tasks:
       - task-15
+  - round: 16
+    tasks:
+      - task-16
 tasks:
   - id: task-01
     title: Add diet plan types and helper functions
@@ -217,6 +220,17 @@ tasks:
       - components/DietPlanCreator.tsx
     depends_on:
       - task-14
+    agent: false
+    test: npm run build
+    done_when: npm run build
+  - id: task-16
+    title: Redesign diet plan PDF as branded light-color table
+    skill: build
+    files:
+      - utils/dietPlanPdf.ts
+      - tests/dietPlan.test.mjs
+    depends_on:
+      - task-15
     agent: false
     test: npm run build
     done_when: npm run build

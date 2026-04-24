@@ -18,6 +18,7 @@ import {
 import {
   buildDietPlanPdfFileName,
   buildDietPlanPdfMetaLines,
+  buildDietPlanPdfSummaryItems,
   buildDietPlanPdfTableData,
 } from '../utils/dietPlanPdf.ts';
 
@@ -194,7 +195,7 @@ test('mergeGeneratedDietPlan keeps patient details and normalizes meal slots', (
   assert.equal(merged.days[0].note, 'Walk for 20 minutes.');
 });
 
-test('buildDietPlanPdfTableData creates table header and day rows', () => {
+test('buildDietPlanPdfTableData creates a weekly table with meal columns', () => {
   const plan = createEmptyDietPlan();
   plan.days[0].meals.breakfast = 'Vegetable poha';
   plan.days[0].meals.lunch = 'Dal roti sabzi';
@@ -209,7 +210,7 @@ test('buildDietPlanPdfTableData creates table header and day rows', () => {
   assert.equal(table.body[0][4], 'Dal roti sabzi');
 });
 
-test('buildDietPlanPdfMetaLines includes extended intake details', () => {
+test('buildDietPlanPdfSummaryItems includes extended intake details', () => {
   const plan = createEmptyDietPlan();
   plan.patient.name = 'Nisha';
   plan.patient.age = '29';
@@ -223,14 +224,34 @@ test('buildDietPlanPdfMetaLines includes extended intake details', () => {
   plan.patient.medicinesSupplements = 'Vitamin D';
   plan.patient.preferences = 'No mushrooms';
 
+  const items = buildDietPlanPdfSummaryItems(plan);
+  const itemMap = Object.fromEntries(
+    items.map((item) => [item.label, item.value]),
+  );
+
+  assert.equal(itemMap.Patient, 'Nisha');
+  assert.equal(itemMap.Height, '162 cm');
+  assert.equal(itemMap.Diet, 'Veg');
+  assert.equal(itemMap.Workout, 'Yes - Strength training');
+  assert.equal(itemMap.Health, 'PCOS');
+  assert.equal(itemMap['Medicines/Supplements'], 'Vitamin D');
+});
+
+test('buildDietPlanPdfMetaLines creates compact summary copy', () => {
+  const plan = createEmptyDietPlan();
+  plan.patient.name = 'Nisha';
+  plan.patient.height = '162 cm';
+  plan.patient.dietType = 'Veg';
+  plan.patient.goal = 'Fat loss';
+  plan.patient.preferences = 'No mushrooms';
+
   const lines = buildDietPlanPdfMetaLines(plan);
 
   assert.match(lines[0], /Patient: Nisha/);
   assert.match(lines[0], /Height: 162 cm/);
-  assert.match(lines[0], /Diet Type: Veg/);
-  assert.match(lines[1], /Workout: Yes - Strength training/);
-  assert.match(lines[2], /Health Issues: PCOS/);
-  assert.match(lines[3], /Food Notes: No mushrooms/);
+  assert.match(lines[0], /Diet: Veg/);
+  assert.match(lines[0], /Goal: Fat loss/);
+  assert.match(lines[1], /Food Notes: No mushrooms/);
 });
 
 test('buildDietPlanPdfFileName creates a safe downloadable file name', () => {
