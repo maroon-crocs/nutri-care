@@ -58,15 +58,6 @@ const reelHighlights = [
     href: 'https://www.instagram.com/reel/DUchrmqiUe0/',
     label: 'Instagram Reel',
   },
-  {
-    title: 'Latest Reel Spotlight',
-    quote: 'Nourish your body and your mind follows.',
-    description:
-      'A featured reel card that keeps your most visible Instagram content one tap away from site visitors.',
-    accent: 'from-violet-200 via-purple-200 to-pink-200',
-    href: 'https://www.instagram.com/reel/DUXX0WBCeyD/',
-    label: 'Instagram Reel',
-  },
 ];
 
 const getInstagramEmbedUrl = (href: string) => {
