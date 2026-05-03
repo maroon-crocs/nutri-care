@@ -5,11 +5,29 @@ const INSTAGRAM_PROFILE = 'https://www.instagram.com/dietitian__iram/';
 
 const reelHighlights = [
   {
+    title: 'Featured Nutrition Reel',
+    quote: 'Simple food habits can create steady progress.',
+    description:
+      'A newly featured reel placed first so visitors immediately see the latest nutrition content.',
+    accent: 'from-rose-200 via-pink-200 to-orange-100',
+    href: 'https://www.instagram.com/reel/DXn9RMazkA8/',
+    label: 'Instagram Reel',
+  },
+  {
+    title: 'Practical Diet Reel',
+    quote: 'Balanced choices work best when they fit daily life.',
+    description:
+      'A second featured reel that highlights practical nutrition guidance from Instagram.',
+    accent: 'from-fuchsia-200 via-purple-200 to-indigo-100',
+    href: 'https://www.instagram.com/reel/DXgVGtXTuV7/',
+    label: 'Instagram Reel',
+  },
+  {
     title: 'Healthy Eating Guidance',
     quote: 'Healthy habits compound into lasting results.',
     description:
       'A direct Instagram post from your profile that visitors can open to view, engage with, and share.',
-    accent: 'from-rose-200 via-pink-200 to-orange-100',
+    accent: 'from-amber-100 via-orange-200 to-rose-200',
     href: 'https://www.instagram.com/p/DTwxhsPCZZ6/',
     label: 'Instagram Post',
   },
@@ -47,15 +65,6 @@ const reelHighlights = [
       'A featured reel card that keeps your most visible Instagram content one tap away from site visitors.',
     accent: 'from-violet-200 via-purple-200 to-pink-200',
     href: 'https://www.instagram.com/reel/DUXX0WBCeyD/',
-    label: 'Instagram Reel',
-  },
-  {
-    title: 'Fresh Reel Update',
-    quote: 'Food can be simple, balanced, and joyful.',
-    description:
-      'A newly added reel link so the website stays aligned with your latest Instagram content.',
-    accent: 'from-cyan-100 via-sky-200 to-indigo-200',
-    href: 'https://www.instagram.com/reel/DT1-4T5Cfny/',
     label: 'Instagram Reel',
   },
 ];
