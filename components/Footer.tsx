@@ -24,7 +24,6 @@ const Footer: React.FC = () => {
               <li><a href="#services" className="hover:text-leaf-500 transition-colors">Services</a></li>
               <li><a href="#bmi" className="hover:text-leaf-500 transition-colors">BMI Calculator</a></li>
               <li><a href="#testimonials" className="hover:text-leaf-500 transition-colors">Success Stories</a></li>
-              <li><a href="#contact" className="hover:text-leaf-500 transition-colors">Contact</a></li>
             </ul>
           </div>
 

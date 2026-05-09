@@ -8,7 +8,6 @@ const HealthyGames = React.lazy(() => import('./components/HealthyGames'));
 const AIAssistant = React.lazy(() => import('./components/AIAssistant'));
 const SocialPresence = React.lazy(() => import('./components/SocialPresence'));
 const Testimonials = React.lazy(() => import('./components/Testimonials'));
-const Contact = React.lazy(() => import('./components/Contact'));
 const Footer = React.lazy(() => import('./components/Footer'));
 const DietPlanCreator = React.lazy(() => import('./components/DietPlanCreator'));
 
@@ -57,7 +56,6 @@ const App: React.FC = () => {
             <AIAssistant bmiResult={bmiResult} />
             <SocialPresence />
             <Testimonials />
-            <Contact />
           </main>
         )}
       </React.Suspense>
