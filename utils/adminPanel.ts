@@ -6,6 +6,7 @@ import type {
   DietPlan,
 } from '../types';
 import { createEmptyDietPlan, normalizeDietPlan } from './dietPlan.ts';
+import { isSupabaseConfigured, supabase } from './supabaseClient.ts';
 
 export const ADMIN_SESSION_STORAGE_KEY = 'nutriguide:admin-session';
 export const ADMIN_CLIENTS_STORAGE_KEY = 'nutriguide:admin-clients';
@@ -59,13 +60,94 @@ const getPaymentStatus = (value: unknown): AdminPaymentStatus =>
 const getObject = (value: unknown): Record<string, unknown> =>
   value && typeof value === 'object' ? (value as Record<string, unknown>) : {};
 
+type ClientRow = {
+  id: string;
+  owner_id: string;
+  name: string;
+  phone: string;
+  instagram_handle: string;
+  email: string;
+  age: string;
+  gender: string;
+  height: string;
+  weight: string;
+  diet_type: string;
+  allergies: string;
+  health_issues: string;
+  goal: string;
+  workout_status: string;
+  workout_type: string;
+  medicines_supplements: string;
+  preferences: string;
+  wake_sleep_time: string;
+  cuisine_preference: string;
+  budget_preference: string;
+  current_eating_pattern: string;
+  package_name: string;
+  amount: number | null;
+  payment_status: AdminPaymentStatus;
+  status: AdminClientStatus;
+  follow_up_date: string | null;
+  notes: string;
+  created_at: string;
+  updated_at: string;
+};
+
+type DietPlanRow = {
+  id: string;
+  owner_id: string;
+  client_id: string | null;
+  title: string;
+  goal: string;
+  status: 'draft' | 'final';
+  plan_json: unknown;
+  created_at: string;
+  updated_at: string;
+};
+
+const createId = (prefix: string): string => {
+  if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) {
+    return crypto.randomUUID();
+  }
+
+  return `${prefix}-${Date.now()}`;
+};
+
+const parseAmount = (value: string): number | null => {
+  const normalized = Number(value.replace(/[^0-9.]/g, ''));
+  return Number.isFinite(normalized) ? normalized : null;
+};
+
+const requireSupabase = () => {
+  if (!supabase) {
+    throw new Error('Supabase is not configured.');
+  }
+
+  return supabase;
+};
+
+const getAuthenticatedUserId = async (): Promise<string> => {
+  const client = requireSupabase();
+  const { data, error } = await client.auth.getUser();
+
+  if (error) {
+    throw error;
+  }
+
+  if (!data.user) {
+    throw new Error('Please sign in again.');
+  }
+
+  return data.user.id;
+};
+
 export const createAdminClient = (
   client: Partial<AdminClient> = {},
 ): AdminClient => {
   const now = new Date().toISOString();
 
   return {
-    id: client.id || `client-${Date.now()}`,
+    id: client.id || createId('client'),
     name: client.name || '',
     phone: client.phone || '',
     instagramHandle: client.instagramHandle || '',
@@ -147,11 +229,132 @@ export const readAdminClients = (): AdminClient[] => {
   }
 };
 
+const mapClientRowToAdminClient = (row: ClientRow): AdminClient =>
+  createAdminClient({
+    id: row.id,
+    name: row.name,
+    phone: row.phone,
+    instagramHandle: row.instagram_handle,
+    email: row.email,
+    age: row.age,
+    gender: row.gender,
+    height: row.height,
+    weight: row.weight,
+    dietType: row.diet_type,
+    allergies: row.allergies,
+    healthIssues: row.health_issues,
+    goal: row.goal,
+    workoutStatus: row.workout_status,
+    workoutType: row.workout_type,
+    medicinesSupplements: row.medicines_supplements,
+    preferences: row.preferences,
+    wakeSleepTime: row.wake_sleep_time,
+    cuisinePreference: row.cuisine_preference,
+    budgetPreference: row.budget_preference,
+    currentEatingPattern: row.current_eating_pattern,
+    packageName: row.package_name,
+    amount: row.amount === null ? '' : row.amount.toString(),
+    paymentStatus: row.payment_status,
+    status: row.status,
+    followUpDate: row.follow_up_date || '',
+    notes: row.notes,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  });
+
+const mapAdminClientToClientRow = (
+  client: AdminClient,
+  ownerId: string,
+): Omit<ClientRow, 'created_at' | 'updated_at'> => ({
+  id: client.id,
+  owner_id: ownerId,
+  name: client.name,
+  phone: client.phone,
+  instagram_handle: client.instagramHandle,
+  email: client.email,
+  age: client.age,
+  gender: client.gender,
+  height: client.height,
+  weight: client.weight,
+  diet_type: client.dietType,
+  allergies: client.allergies,
+  health_issues: client.healthIssues,
+  goal: client.goal,
+  workout_status: client.workoutStatus,
+  workout_type: client.workoutType,
+  medicines_supplements: client.medicinesSupplements,
+  preferences: client.preferences,
+  wake_sleep_time: client.wakeSleepTime,
+  cuisine_preference: client.cuisinePreference,
+  budget_preference: client.budgetPreference,
+  current_eating_pattern: client.currentEatingPattern,
+  package_name: client.packageName,
+  amount: parseAmount(client.amount),
+  payment_status: client.paymentStatus,
+  status: client.status,
+  follow_up_date: client.followUpDate || null,
+  notes: client.notes,
+});
+
+export const readAdminClientsAsync = async (): Promise<AdminClient[]> => {
+  if (!isSupabaseConfigured) {
+    return readAdminClients();
+  }
+
+  const client = requireSupabase();
+  const { data, error } = await client
+    .from('clients')
+    .select('*')
+    .order('updated_at', { ascending: false })
+    .returns<ClientRow[]>();
+
+  if (error) {
+    throw error;
+  }
+
+  return (data || []).map(mapClientRowToAdminClient);
+};
+
 export const writeAdminClients = (clients: AdminClient[]): void => {
   window.localStorage.setItem(
     ADMIN_CLIENTS_STORAGE_KEY,
     JSON.stringify(clients),
   );
+};
+
+export const saveAdminClientAsync = async (
+  client: AdminClient,
+): Promise<AdminClient> => {
+  const now = new Date().toISOString();
+  const clientToSave = createAdminClient({
+    ...client,
+    createdAt: client.createdAt || now,
+    updatedAt: now,
+  });
+
+  if (!isSupabaseConfigured) {
+    const clients = readAdminClients();
+    const exists = clients.some((item) => item.id === clientToSave.id);
+    const nextClients = exists
+      ? clients.map((item) => (item.id === clientToSave.id ? clientToSave : item))
+      : [clientToSave, ...clients];
+    writeAdminClients(nextClients);
+    return clientToSave;
+  }
+
+  const supabaseClient = requireSupabase();
+  const ownerId = await getAuthenticatedUserId();
+  const { data, error } = await supabaseClient
+    .from('clients')
+    .upsert(mapAdminClientToClientRow(clientToSave, ownerId))
+    .select('*')
+    .single<ClientRow>();
+
+  if (error) {
+    throw error;
+  }
+
+  return data ? mapClientRowToAdminClient(data) : clientToSave;
 };
 
 export const createDietPlanFromAdminClient = (
@@ -161,7 +364,7 @@ export const createDietPlanFromAdminClient = (
 
   return {
     ...plan,
-    id: `diet-plan-${Date.now()}`,
+    id: createId('diet-plan'),
     sourceClientId: client.id,
     title: `${client.name.trim() || 'Patient'} Weekly Diet Plan`,
     patient: {
@@ -245,6 +448,57 @@ export const readAdminDietPlanRecords = (): AdminDietPlanRecord[] => {
   }
 };
 
+const mapDietPlanRowToAdminRecord = (row: DietPlanRow): AdminDietPlanRecord => {
+  const plan = normalizeDietPlan(row.plan_json);
+
+  return {
+    id: row.id,
+    clientId: row.client_id || '',
+    patientName: plan.patient.name.trim() || 'Patient',
+    title: row.title || plan.title,
+    goal: row.goal || plan.patient.goal,
+    status: row.status,
+    plan,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+};
+
+const mapPlanToDietPlanRow = (
+  plan: DietPlan,
+  ownerId: string,
+  status: AdminDietPlanRecord['status'],
+): Omit<DietPlanRow, 'created_at' | 'updated_at'> => ({
+  id: plan.id,
+  owner_id: ownerId,
+  client_id: plan.sourceClientId || null,
+  title: plan.title.trim() || 'Weekly Diet Plan',
+  goal: plan.patient.goal.trim(),
+  status,
+  plan_json: normalizeDietPlan(plan),
+});
+
+export const readAdminDietPlanRecordsAsync = async (): Promise<
+  AdminDietPlanRecord[]
+> => {
+  if (!isSupabaseConfigured) {
+    return readAdminDietPlanRecords();
+  }
+
+  const client = requireSupabase();
+  const { data, error } = await client
+    .from('diet_plans')
+    .select('*')
+    .order('updated_at', { ascending: false })
+    .returns<DietPlanRow[]>();
+
+  if (error) {
+    throw error;
+  }
+
+  return (data || []).map(mapDietPlanRowToAdminRecord);
+};
+
 export const writeAdminDietPlanRecords = (
   records: AdminDietPlanRecord[],
 ): void => {
@@ -298,6 +552,45 @@ export const saveAdminDietPlanRecord = (
   }
 
   return nextRecord;
+};
+
+export const saveAdminDietPlanRecordAsync = async (
+  plan: DietPlan,
+  status: AdminDietPlanRecord['status'] = 'draft',
+): Promise<AdminDietPlanRecord> => {
+  if (!isSupabaseConfigured) {
+    return saveAdminDietPlanRecord(plan, status);
+  }
+
+  const client = requireSupabase();
+  const ownerId = await getAuthenticatedUserId();
+  const normalizedPlan = normalizeDietPlan(plan);
+  const { data, error } = await client
+    .from('diet_plans')
+    .upsert(mapPlanToDietPlanRow(normalizedPlan, ownerId, status))
+    .select('*')
+    .single<DietPlanRow>();
+
+  if (error) {
+    throw error;
+  }
+
+  if (normalizedPlan.sourceClientId) {
+    await client
+      .from('clients')
+      .update({ status: status === 'final' ? 'planSent' : 'planPending' })
+      .eq('id', normalizedPlan.sourceClientId)
+      .eq('owner_id', ownerId);
+  }
+
+  return data
+    ? mapDietPlanRowToAdminRecord(data)
+    : normalizeAdminDietPlanRecord({
+        id: normalizedPlan.id,
+        clientId: normalizedPlan.sourceClientId || '',
+        plan: normalizedPlan,
+        status,
+      })!;
 };
 
 export const buildClientIntakeMessage = (client?: AdminClient): string => {

@@ -28,15 +28,20 @@ import {
   buildClientIntakeMessage,
   createAdminClient,
   createDietPlanFromAdminClient,
-  readAdminClients,
-  readAdminDietPlanRecords,
-  writeAdminClients,
+  readAdminClientsAsync,
+  readAdminDietPlanRecordsAsync,
+  saveAdminClientAsync,
 } from '../utils/adminPanel';
 import { DIET_PLAN_STORAGE_KEY } from '../utils/dietPlan';
 import {
   DIET_PLAN_ACCESS_CODE,
   containsDietPlanAccessCode,
 } from '../utils/dietPlanAccess';
+import {
+  getSupabaseSession,
+  isSupabaseConfigured,
+  supabase,
+} from '../utils/supabaseClient';
 
 type AdminNotice = {
   type: 'success' | 'error';
@@ -75,9 +80,13 @@ const createFreshClient = (): AdminClient => createAdminClient();
 
 const AdminPanel: React.FC = () => {
   const [isAuthenticated, setIsAuthenticated] = useState(() =>
+    !isSupabaseConfigured &&
     window.sessionStorage.getItem(ADMIN_SESSION_STORAGE_KEY) === 'unlocked',
   );
+  const [isCheckingAuth, setIsCheckingAuth] = useState(true);
   const [accessCode, setAccessCode] = useState('');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [clients, setClients] = useState<AdminClient[]>([]);
   const [planRecords, setPlanRecords] = useState<AdminDietPlanRecord[]>([]);
   const [activeClientId, setActiveClientId] = useState('');
@@ -149,15 +158,105 @@ const AdminPanel: React.FC = () => {
     ];
   }, [clients]);
 
+  const loadAdminData = async () => {
+    const [nextClients, nextPlanRecords] = await Promise.all([
+      readAdminClientsAsync(),
+      readAdminDietPlanRecordsAsync(),
+    ]);
+    setClients(nextClients);
+    setPlanRecords(nextPlanRecords);
+  };
+
   useEffect(() => {
-    setClients(readAdminClients());
-    setPlanRecords(readAdminDietPlanRecords());
+    let isMounted = true;
+
+    const initializeAdmin = async () => {
+      try {
+        if (isSupabaseConfigured) {
+          const session = await getSupabaseSession();
+          if (!isMounted) {
+            return;
+          }
+
+          setIsAuthenticated(Boolean(session));
+
+          if (session) {
+            await loadAdminData();
+          }
+          return;
+        }
+
+        const unlocked =
+          window.sessionStorage.getItem(ADMIN_SESSION_STORAGE_KEY) ===
+          'unlocked';
+        if (!isMounted) {
+          return;
+        }
+        setIsAuthenticated(unlocked);
+
+        if (unlocked) {
+          await loadAdminData();
+        }
+      } catch (error) {
+        if (isMounted) {
+          setNotice({
+            type: 'error',
+            message:
+              error instanceof Error
+                ? error.message
+                : 'Could not load admin data.',
+          });
+        }
+      } finally {
+        if (isMounted) {
+          setIsCheckingAuth(false);
+        }
+      }
+    };
+
+    initializeAdmin();
+
+    if (!supabase) {
+      return () => {
+        isMounted = false;
+      };
+    }
+
+    const { data } = supabase.auth.onAuthStateChange((_event, session) => {
+      setIsAuthenticated(Boolean(session));
+      if (session) {
+        loadAdminData().catch((error: unknown) => {
+          setNotice({
+            type: 'error',
+            message:
+              error instanceof Error
+                ? error.message
+                : 'Could not load admin data.',
+          });
+        });
+      } else {
+        setClients([]);
+        setPlanRecords([]);
+      }
+    });
+
+    return () => {
+      isMounted = false;
+      data.subscription.unsubscribe();
+    };
   }, []);
 
-  const refreshData = () => {
-    setClients(readAdminClients());
-    setPlanRecords(readAdminDietPlanRecords());
-    setNotice({ type: 'success', message: 'Admin data refreshed.' });
+  const refreshData = async () => {
+    try {
+      await loadAdminData();
+      setNotice({ type: 'success', message: 'Admin data refreshed.' });
+    } catch (error) {
+      setNotice({
+        type: 'error',
+        message:
+          error instanceof Error ? error.message : 'Could not refresh data.',
+      });
+    }
   };
 
   const updateDraftField = (field: keyof AdminClient, value: string) => {
@@ -192,30 +291,25 @@ const AdminPanel: React.FC = () => {
     setNotice(null);
   };
 
-  const saveClient = () => {
+  const saveClient = async () => {
     if (!draftClient.name.trim()) {
       setNotice({ type: 'error', message: 'Add client name before saving.' });
       return;
     }
 
-    const now = new Date().toISOString();
-    const clientToSave: AdminClient = {
-      ...draftClient,
-      updatedAt: now,
-      createdAt: draftClient.createdAt || now,
-    };
-    const exists = clients.some((client) => client.id === clientToSave.id);
-    const nextClients = exists
-      ? clients.map((client) =>
-          client.id === clientToSave.id ? clientToSave : client,
-        )
-      : [clientToSave, ...clients];
-
-    setClients(nextClients);
-    writeAdminClients(nextClients);
-    setActiveClientId(clientToSave.id);
-    setDraftClient(clientToSave);
-    setNotice({ type: 'success', message: 'Client saved.' });
+    try {
+      const clientToSave = await saveAdminClientAsync(draftClient);
+      await loadAdminData();
+      setActiveClientId(clientToSave.id);
+      setDraftClient(clientToSave);
+      setNotice({ type: 'success', message: 'Client saved.' });
+    } catch (error) {
+      setNotice({
+        type: 'error',
+        message:
+          error instanceof Error ? error.message : 'Could not save client.',
+      });
+    }
   };
 
   const copyIntakeQuestions = async () => {
@@ -230,7 +324,7 @@ const AdminPanel: React.FC = () => {
     }
   };
 
-  const startDietPlan = (client: AdminClient) => {
+  const startDietPlan = async (client: AdminClient) => {
     const now = new Date().toISOString();
     const savedClient: AdminClient = {
       ...client,
@@ -238,18 +332,21 @@ const AdminPanel: React.FC = () => {
       createdAt: client.createdAt || now,
       updatedAt: now,
     };
-    const exists = clients.some((item) => item.id === savedClient.id);
-    const nextClients = exists
-      ? clients.map((item) => (item.id === savedClient.id ? savedClient : item))
-      : [savedClient, ...clients];
-    const plan = createDietPlanFromAdminClient(savedClient);
 
-    setClients(nextClients);
-    setActiveClientId(savedClient.id);
-    setDraftClient(savedClient);
-    writeAdminClients(nextClients);
-    window.localStorage.setItem(DIET_PLAN_STORAGE_KEY, JSON.stringify(plan));
-    window.location.hash = '#/diet-plan';
+    try {
+      const persistedClient = await saveAdminClientAsync(savedClient);
+      const plan = createDietPlanFromAdminClient(persistedClient);
+      setActiveClientId(persistedClient.id);
+      setDraftClient(persistedClient);
+      window.localStorage.setItem(DIET_PLAN_STORAGE_KEY, JSON.stringify(plan));
+      window.location.hash = '#/diet-plan';
+    } catch (error) {
+      setNotice({
+        type: 'error',
+        message:
+          error instanceof Error ? error.message : 'Could not create plan.',
+      });
+    }
   };
 
   const openPlanRecord = (record: AdminDietPlanRecord) => {
@@ -260,25 +357,64 @@ const AdminPanel: React.FC = () => {
     window.location.hash = '#/diet-plan';
   };
 
-  const handleLogin = (event: React.FormEvent<HTMLFormElement>) => {
+  const handleLogin = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
-    if (!containsDietPlanAccessCode(accessCode)) {
-      setNotice({ type: 'error', message: 'Wrong admin code.' });
+    if (isSupabaseConfigured) {
+      if (!supabase) {
+        setNotice({ type: 'error', message: 'Supabase is not configured.' });
+        return;
+      }
+
+      const { error } = await supabase.auth.signInWithPassword({
+        email: email.trim(),
+        password,
+      });
+
+      if (error) {
+        setNotice({ type: 'error', message: error.message });
+        return;
+      }
+
+      setNotice({ type: 'success', message: 'Admin signed in.' });
       return;
     }
 
-    window.sessionStorage.setItem(ADMIN_SESSION_STORAGE_KEY, 'unlocked');
-    setIsAuthenticated(true);
-    setNotice({ type: 'success', message: 'Admin unlocked.' });
+    if (containsDietPlanAccessCode(accessCode)) {
+      window.sessionStorage.setItem(ADMIN_SESSION_STORAGE_KEY, 'unlocked');
+      setIsAuthenticated(true);
+      await loadAdminData();
+      setNotice({ type: 'success', message: 'Admin unlocked.' });
+      return;
+    }
+
+    setNotice({ type: 'error', message: 'Wrong admin code.' });
   };
 
-  const logout = () => {
+  const logout = async () => {
+    if (supabase) {
+      await supabase.auth.signOut();
+    }
     window.sessionStorage.removeItem(ADMIN_SESSION_STORAGE_KEY);
     setIsAuthenticated(false);
     setAccessCode('');
+    setEmail('');
+    setPassword('');
     setNotice(null);
   };
+
+  if (isCheckingAuth) {
+    return (
+      <main className="flex min-h-screen items-center justify-center bg-slate-50 px-6 pt-24 text-slate-900">
+        <div className="rounded-lg border border-slate-200 bg-white p-8 text-center shadow-sm">
+          <div className="mx-auto mb-4 h-10 w-10 animate-spin rounded-full border-b-2 border-leaf-600"></div>
+          <p className="text-sm font-semibold text-slate-600">
+            Checking admin session...
+          </p>
+        </div>
+      </main>
+    );
+  }
 
   if (!isAuthenticated) {
     return (
@@ -293,22 +429,49 @@ const AdminPanel: React.FC = () => {
                 Admin Panel
               </h1>
               <p className="text-sm text-slate-500">
-                Enter the private code to manage clients.
+                {isSupabaseConfigured
+                  ? 'Sign in with your Supabase admin account.'
+                  : 'Enter the private code to manage clients.'}
               </p>
             </div>
           </div>
 
           <form onSubmit={handleLogin} className="space-y-4">
-            <label>
-              <span className={labelClassName}>Admin Code</span>
-              <input
-                type="password"
-                value={accessCode}
-                onChange={(event) => setAccessCode(event.target.value)}
-                className={inputClassName}
-                placeholder={DIET_PLAN_ACCESS_CODE}
-              />
-            </label>
+            {isSupabaseConfigured ? (
+              <>
+                <label>
+                  <span className={labelClassName}>Email</span>
+                  <input
+                    type="email"
+                    value={email}
+                    onChange={(event) => setEmail(event.target.value)}
+                    className={inputClassName}
+                    placeholder="admin@example.com"
+                  />
+                </label>
+                <label>
+                  <span className={labelClassName}>Password</span>
+                  <input
+                    type="password"
+                    value={password}
+                    onChange={(event) => setPassword(event.target.value)}
+                    className={inputClassName}
+                    placeholder="Admin password"
+                  />
+                </label>
+              </>
+            ) : (
+              <label>
+                <span className={labelClassName}>Admin Code</span>
+                <input
+                  type="password"
+                  value={accessCode}
+                  onChange={(event) => setAccessCode(event.target.value)}
+                  className={inputClassName}
+                  placeholder={DIET_PLAN_ACCESS_CODE}
+                />
+              </label>
+            )}
             <button
               type="submit"
               className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-leaf-600 px-4 py-3 text-sm font-semibold text-white transition hover:bg-leaf-700"

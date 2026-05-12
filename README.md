@@ -36,6 +36,25 @@ If you deploy the frontend under a project subpath, set `VITE_BASE_PATH` to that
 
 This repo includes [.env.production](.env.production) so production builds target the live Worker URL by default.
 
+## Deploy the Frontend on Vercel
+
+The app is configured for Vercel with [vercel.json](vercel.json).
+
+Use these settings:
+
+- Framework Preset: `Vite`
+- Build Command: `npm run build`
+- Output Directory: `dist`
+
+Set the frontend environment variables in Vercel:
+
+- `VITE_API_BASE_URL`
+- `VITE_BASE_PATH`
+- `VITE_SUPABASE_URL`
+- `VITE_SUPABASE_ANON_KEY`
+
+Supabase and Vercel setup notes are in [docs/supabase-vercel-setup.md](docs/supabase-vercel-setup.md).
+
 ## Security note
 
 This repo no longer reads a Gemini key from the frontend bundle. If your key was flagged as leaked, rotate it in Google AI Studio and store the replacement only in Cloudflare Worker secrets or local `.dev.vars`.

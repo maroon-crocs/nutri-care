@@ -39,7 +39,7 @@ import {
   normalizeInstagramHandle,
   splitTextIntoShareChunks,
 } from '../utils/dietPlan';
-import { saveAdminDietPlanRecord } from '../utils/adminPanel';
+import { saveAdminDietPlanRecordAsync } from '../utils/adminPanel';
 import { downloadDietPlanPdf } from '../utils/dietPlanPdf';
 
 type NoticeState = {
@@ -413,9 +413,9 @@ const DietPlanCreator: React.FC = () => {
     }
   };
 
-  const saveToAdminHistory = (status: 'draft' | 'final') => {
+  const saveToAdminHistory = async (status: 'draft' | 'final') => {
     try {
-      saveAdminDietPlanRecord(plan, status);
+      await saveAdminDietPlanRecordAsync(plan, status);
       setNotice({
         type: 'success',
         message:
