@@ -312,8 +312,12 @@ test('buildDietPlanPdfNoteLines wraps notes to the visible text column', () => {
   plan.days[1].note = 'Include omega-3 rich fish for heart health.';
 
   const lines = buildDietPlanPdfNoteLines(doc, plan, notesTextWidth);
+  const notesText = lines.join(' ');
 
-  assert.ok(lines.length > 3);
+  assert.ok(lines.length > 0);
+  assert.match(notesText, /Instructions:/);
+  assert.doesNotMatch(notesText, /Monday:/);
+  assert.doesNotMatch(notesText, /Tuesday:/);
   assert.ok(
     lines.every((line) => doc.getTextWidth(line) <= notesTextWidth + 0.1),
   );

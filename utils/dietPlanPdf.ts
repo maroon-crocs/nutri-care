@@ -207,9 +207,6 @@ export const buildDietPlanPdfGeneralGuidelines = (plan: DietPlan): string[] => {
 const buildDietPlanPdfNoteItems = (plan: DietPlan): string[] =>
   [
     plan.instructions.trim() ? `Instructions: ${plan.instructions.trim()}` : '',
-    ...plan.days
-      .filter((day) => day.note.trim())
-      .map((day) => `${day.label}: ${day.note.trim()}`),
   ].filter(Boolean);
 
 export const buildDietPlanPdfNoteLines = (
