@@ -1,0 +1,2 @@
+const l="Roshan_2026",i="#/diet-plan",r="#/admin",t=n=>n.toUpperCase().replace(/[^A-Z0-9]/g,""),A=n=>t(n).includes(t(l)),o=(n,e="/",s=i)=>`${n.replace(/\/$/,"")}${e||"/"}${s}`,d=(n,e,s="/")=>{if(!A(n))return null;const a=o(e,s,r),c=o(e,s,i);return["Admin workspace unlocked.","",`[Open Admin Panel](${a})`,"",`[Open Diet Plan Creator](${c})`,"",`Admin URL: ${a}`,`Diet Plan URL: ${c}`].join(`
+`)};export{l as D,d as b,A as c};
