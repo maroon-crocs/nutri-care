@@ -103,6 +103,7 @@ export type DietPlanGuidelineId =
 
 export interface DietPlan {
   id: string;
+  sourceClientId?: string;
   title: string;
   dietitianName: string;
   patient: DietPlanPatient;
@@ -131,4 +132,59 @@ export interface DietPlanGenerationResult {
   instructions: string;
   days: DietPlanDay[];
   reviewNotes: string[];
+}
+
+export type AdminClientStatus =
+  | 'new'
+  | 'intakeReceived'
+  | 'paymentPending'
+  | 'planPending'
+  | 'planSent'
+  | 'followUpDue'
+  | 'completed';
+
+export type AdminPaymentStatus = 'unpaid' | 'paid' | 'partial';
+
+export interface AdminClient {
+  id: string;
+  name: string;
+  phone: string;
+  instagramHandle: string;
+  email: string;
+  age: string;
+  gender: string;
+  height: string;
+  weight: string;
+  dietType: string;
+  allergies: string;
+  healthIssues: string;
+  goal: string;
+  workoutStatus: string;
+  workoutType: string;
+  medicinesSupplements: string;
+  preferences: string;
+  wakeSleepTime: string;
+  cuisinePreference: string;
+  budgetPreference: string;
+  currentEatingPattern: string;
+  packageName: string;
+  amount: string;
+  paymentStatus: AdminPaymentStatus;
+  status: AdminClientStatus;
+  followUpDate: string;
+  notes: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface AdminDietPlanRecord {
+  id: string;
+  clientId: string;
+  patientName: string;
+  title: string;
+  goal: string;
+  status: 'draft' | 'final';
+  plan: DietPlan;
+  createdAt: string;
+  updatedAt: string;
 }

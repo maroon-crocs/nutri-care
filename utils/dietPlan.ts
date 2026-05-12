@@ -389,6 +389,7 @@ export const DIET_PLAN_TEMPLATES: DietPlanTemplate[] = [
 
 export const createEmptyDietPlan = (): DietPlan => ({
   id: `diet-plan-${Date.now()}`,
+  sourceClientId: undefined,
   title: 'Weekly Diet Plan',
   dietitianName: 'Dietitian Iram',
   patient: {
@@ -441,6 +442,10 @@ export const normalizeDietPlan = (value: unknown): DietPlan => {
   return {
     ...basePlan,
     ...incomingPlan,
+    sourceClientId:
+      typeof incomingPlan.sourceClientId === 'string'
+        ? incomingPlan.sourceClientId
+        : basePlan.sourceClientId,
     patient: {
       ...basePlan.patient,
       ...incomingPatient,

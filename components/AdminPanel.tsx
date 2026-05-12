@@ -1,0 +1,953 @@
+import React, { useEffect, useMemo, useState } from 'react';
+import {
+  CalendarClock,
+  ClipboardList,
+  Copy,
+  FileText,
+  LogOut,
+  Plus,
+  RefreshCcw,
+  Save,
+  Search,
+  Send,
+  ShieldCheck,
+  Sparkles,
+  UserRound,
+  UsersRound,
+} from 'lucide-react';
+import type {
+  AdminClient,
+  AdminClientStatus,
+  AdminDietPlanRecord,
+  AdminPaymentStatus,
+} from '../types';
+import {
+  ADMIN_CLIENT_STATUSES,
+  ADMIN_PAYMENT_STATUSES,
+  ADMIN_SESSION_STORAGE_KEY,
+  buildClientIntakeMessage,
+  createAdminClient,
+  createDietPlanFromAdminClient,
+  readAdminClients,
+  readAdminDietPlanRecords,
+  writeAdminClients,
+} from '../utils/adminPanel';
+import { DIET_PLAN_STORAGE_KEY } from '../utils/dietPlan';
+import {
+  DIET_PLAN_ACCESS_CODE,
+  containsDietPlanAccessCode,
+} from '../utils/dietPlanAccess';
+
+type AdminNotice = {
+  type: 'success' | 'error';
+  message: string;
+} | null;
+
+const inputClassName =
+  'w-full rounded-lg border border-slate-200 bg-white px-4 py-3 text-sm text-slate-800 outline-none transition focus:border-leaf-500 focus:ring-2 focus:ring-leaf-100';
+
+const labelClassName = 'mb-2 block text-sm font-semibold text-slate-700';
+
+const statusLabelMap = Object.fromEntries(
+  ADMIN_CLIENT_STATUSES.map((status) => [status.id, status.label]),
+) as Record<AdminClientStatus, string>;
+
+const paymentLabelMap = Object.fromEntries(
+  ADMIN_PAYMENT_STATUSES.map((status) => [status.id, status.label]),
+) as Record<AdminPaymentStatus, string>;
+
+const formatDate = (value: string): string => {
+  if (!value) {
+    return 'Not set';
+  }
+
+  const date = new Date(value);
+  return Number.isNaN(date.getTime())
+    ? value
+    : date.toLocaleDateString('en-IN', {
+        day: '2-digit',
+        month: 'short',
+        year: 'numeric',
+      });
+};
+
+const createFreshClient = (): AdminClient => createAdminClient();
+
+const AdminPanel: React.FC = () => {
+  const [isAuthenticated, setIsAuthenticated] = useState(() =>
+    window.sessionStorage.getItem(ADMIN_SESSION_STORAGE_KEY) === 'unlocked',
+  );
+  const [accessCode, setAccessCode] = useState('');
+  const [clients, setClients] = useState<AdminClient[]>([]);
+  const [planRecords, setPlanRecords] = useState<AdminDietPlanRecord[]>([]);
+  const [activeClientId, setActiveClientId] = useState('');
+  const [draftClient, setDraftClient] = useState<AdminClient>(() =>
+    createFreshClient(),
+  );
+  const [searchText, setSearchText] = useState('');
+  const [statusFilter, setStatusFilter] = useState<'all' | AdminClientStatus>(
+    'all',
+  );
+  const [notice, setNotice] = useState<AdminNotice>(null);
+
+  const activeClient = useMemo(
+    () => clients.find((client) => client.id === activeClientId) || null,
+    [activeClientId, clients],
+  );
+
+  const filteredClients = useMemo(() => {
+    const normalizedSearch = searchText.trim().toLowerCase();
+
+    return clients.filter((client) => {
+      const statusMatches =
+        statusFilter === 'all' || client.status === statusFilter;
+      const searchMatches =
+        !normalizedSearch ||
+        [
+          client.name,
+          client.phone,
+          client.instagramHandle,
+          client.goal,
+          client.healthIssues,
+        ]
+          .join(' ')
+          .toLowerCase()
+          .includes(normalizedSearch);
+
+      return statusMatches && searchMatches;
+    });
+  }, [clients, searchText, statusFilter]);
+
+  const selectedClientPlans = useMemo(
+    () =>
+      activeClient
+        ? planRecords.filter((record) => record.clientId === activeClient.id)
+        : planRecords.slice(0, 5),
+    [activeClient, planRecords],
+  );
+
+  const stats = useMemo(() => {
+    const activeClients = clients.filter(
+      (client) => client.status !== 'completed',
+    ).length;
+    const pendingPlans = clients.filter(
+      (client) => client.status === 'planPending',
+    ).length;
+    const unpaidClients = clients.filter(
+      (client) => client.paymentStatus !== 'paid',
+    ).length;
+    const followUps = clients.filter(
+      (client) => client.status === 'followUpDue',
+    ).length;
+
+    return [
+      { label: 'Total Clients', value: clients.length.toString() },
+      { label: 'Active Clients', value: activeClients.toString() },
+      { label: 'Plans Pending', value: pendingPlans.toString() },
+      { label: 'Payments Due', value: unpaidClients.toString() },
+      { label: 'Follow-ups', value: followUps.toString() },
+    ];
+  }, [clients]);
+
+  useEffect(() => {
+    setClients(readAdminClients());
+    setPlanRecords(readAdminDietPlanRecords());
+  }, []);
+
+  const refreshData = () => {
+    setClients(readAdminClients());
+    setPlanRecords(readAdminDietPlanRecords());
+    setNotice({ type: 'success', message: 'Admin data refreshed.' });
+  };
+
+  const updateDraftField = (field: keyof AdminClient, value: string) => {
+    setDraftClient((current) => ({
+      ...current,
+      [field]: value,
+    }));
+  };
+
+  const updateDraftStatus = (value: AdminClientStatus) => {
+    setDraftClient((current) => ({
+      ...current,
+      status: value,
+    }));
+  };
+
+  const updateDraftPaymentStatus = (value: AdminPaymentStatus) => {
+    setDraftClient((current) => ({
+      ...current,
+      paymentStatus: value,
+    }));
+  };
+
+  const selectClient = (client: AdminClient) => {
+    setActiveClientId(client.id);
+    setDraftClient(client);
+  };
+
+  const startNewClient = () => {
+    setActiveClientId('');
+    setDraftClient(createFreshClient());
+    setNotice(null);
+  };
+
+  const saveClient = () => {
+    if (!draftClient.name.trim()) {
+      setNotice({ type: 'error', message: 'Add client name before saving.' });
+      return;
+    }
+
+    const now = new Date().toISOString();
+    const clientToSave: AdminClient = {
+      ...draftClient,
+      updatedAt: now,
+      createdAt: draftClient.createdAt || now,
+    };
+    const exists = clients.some((client) => client.id === clientToSave.id);
+    const nextClients = exists
+      ? clients.map((client) =>
+          client.id === clientToSave.id ? clientToSave : client,
+        )
+      : [clientToSave, ...clients];
+
+    setClients(nextClients);
+    writeAdminClients(nextClients);
+    setActiveClientId(clientToSave.id);
+    setDraftClient(clientToSave);
+    setNotice({ type: 'success', message: 'Client saved.' });
+  };
+
+  const copyIntakeQuestions = async () => {
+    try {
+      await navigator.clipboard.writeText(buildClientIntakeMessage(draftClient));
+      setNotice({ type: 'success', message: 'Intake questions copied.' });
+    } catch {
+      setNotice({
+        type: 'error',
+        message: 'Copy failed. Select and copy the questions manually.',
+      });
+    }
+  };
+
+  const startDietPlan = (client: AdminClient) => {
+    const now = new Date().toISOString();
+    const savedClient: AdminClient = {
+      ...client,
+      status: 'planPending',
+      createdAt: client.createdAt || now,
+      updatedAt: now,
+    };
+    const exists = clients.some((item) => item.id === savedClient.id);
+    const nextClients = exists
+      ? clients.map((item) => (item.id === savedClient.id ? savedClient : item))
+      : [savedClient, ...clients];
+    const plan = createDietPlanFromAdminClient(savedClient);
+
+    setClients(nextClients);
+    setActiveClientId(savedClient.id);
+    setDraftClient(savedClient);
+    writeAdminClients(nextClients);
+    window.localStorage.setItem(DIET_PLAN_STORAGE_KEY, JSON.stringify(plan));
+    window.location.hash = '#/diet-plan';
+  };
+
+  const openPlanRecord = (record: AdminDietPlanRecord) => {
+    window.localStorage.setItem(
+      DIET_PLAN_STORAGE_KEY,
+      JSON.stringify(record.plan),
+    );
+    window.location.hash = '#/diet-plan';
+  };
+
+  const handleLogin = (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+
+    if (!containsDietPlanAccessCode(accessCode)) {
+      setNotice({ type: 'error', message: 'Wrong admin code.' });
+      return;
+    }
+
+    window.sessionStorage.setItem(ADMIN_SESSION_STORAGE_KEY, 'unlocked');
+    setIsAuthenticated(true);
+    setNotice({ type: 'success', message: 'Admin unlocked.' });
+  };
+
+  const logout = () => {
+    window.sessionStorage.removeItem(ADMIN_SESSION_STORAGE_KEY);
+    setIsAuthenticated(false);
+    setAccessCode('');
+    setNotice(null);
+  };
+
+  if (!isAuthenticated) {
+    return (
+      <main className="min-h-screen bg-slate-50 px-6 pt-28 text-slate-900">
+        <section className="mx-auto max-w-md rounded-lg border border-slate-200 bg-white p-8 shadow-sm">
+          <div className="mb-6 flex items-center gap-3">
+            <div className="flex h-11 w-11 items-center justify-center rounded-lg bg-leaf-600 text-white">
+              <ShieldCheck size={22} />
+            </div>
+            <div>
+              <h1 className="text-2xl font-bold text-slate-950">
+                Admin Panel
+              </h1>
+              <p className="text-sm text-slate-500">
+                Enter the private code to manage clients.
+              </p>
+            </div>
+          </div>
+
+          <form onSubmit={handleLogin} className="space-y-4">
+            <label>
+              <span className={labelClassName}>Admin Code</span>
+              <input
+                type="password"
+                value={accessCode}
+                onChange={(event) => setAccessCode(event.target.value)}
+                className={inputClassName}
+                placeholder={DIET_PLAN_ACCESS_CODE}
+              />
+            </label>
+            <button
+              type="submit"
+              className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-leaf-600 px-4 py-3 text-sm font-semibold text-white transition hover:bg-leaf-700"
+            >
+              <ShieldCheck size={18} />
+              Unlock Admin
+            </button>
+          </form>
+
+          {notice && (
+            <p
+              className={`mt-4 rounded-lg border px-4 py-3 text-sm font-medium ${
+                notice.type === 'success'
+                  ? 'border-leaf-200 bg-leaf-50 text-leaf-800'
+                  : 'border-red-200 bg-red-50 text-red-700'
+              }`}
+            >
+              {notice.message}
+            </p>
+          )}
+        </section>
+      </main>
+    );
+  }
+
+  return (
+    <main className="min-h-screen bg-slate-50 pt-24 text-slate-900">
+      <section className="border-b border-slate-200 bg-white">
+        <div className="container mx-auto px-6 py-8">
+          <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
+            <div>
+              <p className="mb-3 text-sm font-semibold uppercase tracking-[0.18em] text-leaf-600">
+                Nutritionist admin
+              </p>
+              <h1 className="font-serif text-4xl font-bold text-slate-950 md:text-5xl">
+                Client Workflow Dashboard
+              </h1>
+              <p className="mt-4 max-w-3xl text-base leading-relaxed text-slate-600">
+                Manage clients, intake details, payment status, follow-ups, and
+                saved diet plan history from one private workspace.
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-3">
+              <button
+                type="button"
+                onClick={refreshData}
+                className="inline-flex items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700 transition hover:border-leaf-300 hover:text-leaf-700"
+              >
+                <RefreshCcw size={18} />
+                Refresh
+              </button>
+              <button
+                type="button"
+                onClick={startNewClient}
+                className="inline-flex items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700 transition hover:border-leaf-300 hover:text-leaf-700"
+              >
+                <Plus size={18} />
+                New Client
+              </button>
+              <button
+                type="button"
+                onClick={logout}
+                className="inline-flex items-center justify-center gap-2 rounded-lg bg-slate-900 px-4 py-3 text-sm font-semibold text-white transition hover:bg-slate-800"
+              >
+                <LogOut size={18} />
+                Logout
+              </button>
+            </div>
+          </div>
+
+          {notice && (
+            <div
+              className={`mt-6 rounded-lg border px-4 py-3 text-sm font-medium ${
+                notice.type === 'success'
+                  ? 'border-leaf-200 bg-leaf-50 text-leaf-800'
+                  : 'border-red-200 bg-red-50 text-red-700'
+              }`}
+            >
+              {notice.message}
+            </div>
+          )}
+        </div>
+      </section>
+
+      <section className="container mx-auto px-6 py-8">
+        <div className="mb-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+          {stats.map((stat) => (
+            <div
+              key={stat.label}
+              className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm"
+            >
+              <p className="text-sm font-semibold text-slate-500">
+                {stat.label}
+              </p>
+              <p className="mt-2 text-3xl font-bold text-slate-950">
+                {stat.value}
+              </p>
+            </div>
+          ))}
+        </div>
+
+        <div className="grid gap-6 xl:grid-cols-[360px_minmax(0,1fr)]">
+          <aside className="space-y-4 xl:sticky xl:top-28 xl:self-start">
+            <div className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+              <div className="mb-4 flex items-center gap-3">
+                <UsersRound size={20} className="text-leaf-700" />
+                <h2 className="text-lg font-bold text-slate-900">Clients</h2>
+              </div>
+              <div className="space-y-3">
+                <div className="relative">
+                  <Search
+                    size={17}
+                    className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
+                  />
+                  <input
+                    value={searchText}
+                    onChange={(event) => setSearchText(event.target.value)}
+                    className={`${inputClassName} pl-10`}
+                    placeholder="Search clients"
+                  />
+                </div>
+                <select
+                  value={statusFilter}
+                  onChange={(event) =>
+                    setStatusFilter(event.target.value as 'all' | AdminClientStatus)
+                  }
+                  className={inputClassName}
+                >
+                  <option value="all">All statuses</option>
+                  {ADMIN_CLIENT_STATUSES.map((status) => (
+                    <option key={status.id} value={status.id}>
+                      {status.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            <div className="max-h-[640px] space-y-3 overflow-auto pr-1">
+              {filteredClients.length ? (
+                filteredClients.map((client) => (
+                  <button
+                    key={client.id}
+                    type="button"
+                    onClick={() => selectClient(client)}
+                    className={`w-full rounded-lg border p-4 text-left transition ${
+                      client.id === activeClientId
+                        ? 'border-leaf-400 bg-leaf-50'
+                        : 'border-slate-200 bg-white hover:border-leaf-200'
+                    }`}
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <p className="font-bold text-slate-900">
+                          {client.name || 'Unnamed client'}
+                        </p>
+                        <p className="mt-1 text-sm text-slate-500">
+                          {client.goal || 'No goal added'}
+                        </p>
+                      </div>
+                      <span className="rounded-full bg-slate-100 px-2 py-1 text-xs font-semibold text-slate-600">
+                        {statusLabelMap[client.status]}
+                      </span>
+                    </div>
+                    <p className="mt-3 text-xs font-semibold text-slate-500">
+                      {client.phone || client.instagramHandle || 'No contact'}
+                    </p>
+                  </button>
+                ))
+              ) : (
+                <div className="rounded-lg border border-dashed border-slate-300 bg-white p-6 text-center text-sm text-slate-500">
+                  No clients found.
+                </div>
+              )}
+            </div>
+          </aside>
+
+          <div className="space-y-6">
+            <section className="rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
+              <div className="mb-6 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-leaf-50 text-leaf-700">
+                    <UserRound size={20} />
+                  </div>
+                  <div>
+                    <h2 className="text-lg font-bold text-slate-900">
+                      Client Profile
+                    </h2>
+                    <p className="text-sm text-slate-500">
+                      Save full intake details before creating a plan.
+                    </p>
+                  </div>
+                </div>
+                <div className="flex flex-wrap gap-3">
+                  <button
+                    type="button"
+                    onClick={copyIntakeQuestions}
+                    className="inline-flex items-center justify-center gap-2 rounded-lg border border-slate-200 px-4 py-3 text-sm font-semibold text-slate-700 transition hover:border-leaf-300 hover:text-leaf-700"
+                  >
+                    <Copy size={17} />
+                    Copy Intake
+                  </button>
+                  <button
+                    type="button"
+                    onClick={saveClient}
+                    className="inline-flex items-center justify-center gap-2 rounded-lg bg-leaf-600 px-4 py-3 text-sm font-semibold text-white transition hover:bg-leaf-700"
+                  >
+                    <Save size={17} />
+                    Save Client
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => startDietPlan(draftClient)}
+                    disabled={!draftClient.name.trim()}
+                    className="inline-flex items-center justify-center gap-2 rounded-lg bg-slate-900 px-4 py-3 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:bg-slate-300"
+                  >
+                    <Sparkles size={17} />
+                    Create Plan
+                  </button>
+                </div>
+              </div>
+
+              <div className="grid gap-5 md:grid-cols-2">
+                <label>
+                  <span className={labelClassName}>Name</span>
+                  <input
+                    value={draftClient.name}
+                    onChange={(event) =>
+                      updateDraftField('name', event.target.value)
+                    }
+                    className={inputClassName}
+                    placeholder="Client full name"
+                  />
+                </label>
+                <label>
+                  <span className={labelClassName}>Phone</span>
+                  <input
+                    value={draftClient.phone}
+                    onChange={(event) =>
+                      updateDraftField('phone', event.target.value)
+                    }
+                    className={inputClassName}
+                    placeholder="+91 98765 43210"
+                  />
+                </label>
+                <label>
+                  <span className={labelClassName}>Instagram</span>
+                  <input
+                    value={draftClient.instagramHandle}
+                    onChange={(event) =>
+                      updateDraftField('instagramHandle', event.target.value)
+                    }
+                    className={inputClassName}
+                    placeholder="@username"
+                  />
+                </label>
+                <label>
+                  <span className={labelClassName}>Email</span>
+                  <input
+                    value={draftClient.email}
+                    onChange={(event) =>
+                      updateDraftField('email', event.target.value)
+                    }
+                    className={inputClassName}
+                    placeholder="Optional"
+                  />
+                </label>
+                <label>
+                  <span className={labelClassName}>Age</span>
+                  <input
+                    value={draftClient.age}
+                    onChange={(event) =>
+                      updateDraftField('age', event.target.value)
+                    }
+                    className={inputClassName}
+                    placeholder="29"
+                  />
+                </label>
+                <label>
+                  <span className={labelClassName}>Gender</span>
+                  <input
+                    value={draftClient.gender}
+                    onChange={(event) =>
+                      updateDraftField('gender', event.target.value)
+                    }
+                    className={inputClassName}
+                    placeholder="Female"
+                  />
+                </label>
+                <label>
+                  <span className={labelClassName}>Height</span>
+                  <input
+                    value={draftClient.height}
+                    onChange={(event) =>
+                      updateDraftField('height', event.target.value)
+                    }
+                    className={inputClassName}
+                    placeholder="162 cm"
+                  />
+                </label>
+                <label>
+                  <span className={labelClassName}>Weight</span>
+                  <input
+                    value={draftClient.weight}
+                    onChange={(event) =>
+                      updateDraftField('weight', event.target.value)
+                    }
+                    className={inputClassName}
+                    placeholder="59 kg"
+                  />
+                </label>
+                <label>
+                  <span className={labelClassName}>Diet Type</span>
+                  <select
+                    value={draftClient.dietType}
+                    onChange={(event) =>
+                      updateDraftField('dietType', event.target.value)
+                    }
+                    className={inputClassName}
+                  >
+                    <option value="">Select</option>
+                    <option value="Veg">Veg</option>
+                    <option value="Eggetarian">Eggetarian</option>
+                    <option value="Non-veg">Non-veg</option>
+                  </select>
+                </label>
+                <label>
+                  <span className={labelClassName}>Goal</span>
+                  <input
+                    value={draftClient.goal}
+                    onChange={(event) =>
+                      updateDraftField('goal', event.target.value)
+                    }
+                    className={inputClassName}
+                    placeholder="Weight loss, PCOS, diabetes"
+                  />
+                </label>
+                <label>
+                  <span className={labelClassName}>Workout</span>
+                  <select
+                    value={draftClient.workoutStatus}
+                    onChange={(event) =>
+                      updateDraftField('workoutStatus', event.target.value)
+                    }
+                    className={inputClassName}
+                  >
+                    <option value="">Select</option>
+                    <option value="Yes">Yes</option>
+                    <option value="No">No</option>
+                  </select>
+                </label>
+                <label>
+                  <span className={labelClassName}>Workout Type</span>
+                  <input
+                    value={draftClient.workoutType}
+                    onChange={(event) =>
+                      updateDraftField('workoutType', event.target.value)
+                    }
+                    className={inputClassName}
+                    placeholder="Walking, gym, yoga"
+                  />
+                </label>
+                <label>
+                  <span className={labelClassName}>Client Status</span>
+                  <select
+                    value={draftClient.status}
+                    onChange={(event) =>
+                      updateDraftStatus(event.target.value as AdminClientStatus)
+                    }
+                    className={inputClassName}
+                  >
+                    {ADMIN_CLIENT_STATUSES.map((status) => (
+                      <option key={status.id} value={status.id}>
+                        {status.label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label>
+                  <span className={labelClassName}>Payment Status</span>
+                  <select
+                    value={draftClient.paymentStatus}
+                    onChange={(event) =>
+                      updateDraftPaymentStatus(
+                        event.target.value as AdminPaymentStatus,
+                      )
+                    }
+                    className={inputClassName}
+                  >
+                    {ADMIN_PAYMENT_STATUSES.map((status) => (
+                      <option key={status.id} value={status.id}>
+                        {status.label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label>
+                  <span className={labelClassName}>Package</span>
+                  <input
+                    value={draftClient.packageName}
+                    onChange={(event) =>
+                      updateDraftField('packageName', event.target.value)
+                    }
+                    className={inputClassName}
+                    placeholder="1 week, 1 month, 3 months"
+                  />
+                </label>
+                <label>
+                  <span className={labelClassName}>Amount</span>
+                  <input
+                    value={draftClient.amount}
+                    onChange={(event) =>
+                      updateDraftField('amount', event.target.value)
+                    }
+                    className={inputClassName}
+                    placeholder="INR"
+                  />
+                </label>
+                <label>
+                  <span className={labelClassName}>Follow-up Date</span>
+                  <input
+                    type="date"
+                    value={draftClient.followUpDate}
+                    onChange={(event) =>
+                      updateDraftField('followUpDate', event.target.value)
+                    }
+                    className={inputClassName}
+                  />
+                </label>
+                <label>
+                  <span className={labelClassName}>Wake / Sleep Time</span>
+                  <input
+                    value={draftClient.wakeSleepTime}
+                    onChange={(event) =>
+                      updateDraftField('wakeSleepTime', event.target.value)
+                    }
+                    className={inputClassName}
+                    placeholder="7 AM wake, 11 PM sleep"
+                  />
+                </label>
+                <label className="md:col-span-2">
+                  <span className={labelClassName}>Allergies</span>
+                  <textarea
+                    rows={2}
+                    value={draftClient.allergies}
+                    onChange={(event) =>
+                      updateDraftField('allergies', event.target.value)
+                    }
+                    className={inputClassName}
+                    placeholder="Food allergies or intolerances"
+                  />
+                </label>
+                <label className="md:col-span-2">
+                  <span className={labelClassName}>Health Issues</span>
+                  <textarea
+                    rows={2}
+                    value={draftClient.healthIssues}
+                    onChange={(event) =>
+                      updateDraftField('healthIssues', event.target.value)
+                    }
+                    className={inputClassName}
+                    placeholder="PCOS, thyroid, diabetes, acidity, etc."
+                  />
+                </label>
+                <label className="md:col-span-2">
+                  <span className={labelClassName}>Medicines / Supplements</span>
+                  <textarea
+                    rows={2}
+                    value={draftClient.medicinesSupplements}
+                    onChange={(event) =>
+                      updateDraftField(
+                        'medicinesSupplements',
+                        event.target.value,
+                      )
+                    }
+                    className={inputClassName}
+                    placeholder="Medicine names, supplement timing"
+                  />
+                </label>
+                <label>
+                  <span className={labelClassName}>Cuisine Preference</span>
+                  <input
+                    value={draftClient.cuisinePreference}
+                    onChange={(event) =>
+                      updateDraftField('cuisinePreference', event.target.value)
+                    }
+                    className={inputClassName}
+                    placeholder="Indian home-style, South Indian"
+                  />
+                </label>
+                <label>
+                  <span className={labelClassName}>Budget Preference</span>
+                  <input
+                    value={draftClient.budgetPreference}
+                    onChange={(event) =>
+                      updateDraftField('budgetPreference', event.target.value)
+                    }
+                    className={inputClassName}
+                    placeholder="Low, medium, flexible"
+                  />
+                </label>
+                <label className="md:col-span-2">
+                  <span className={labelClassName}>Food Notes</span>
+                  <textarea
+                    rows={3}
+                    value={draftClient.preferences}
+                    onChange={(event) =>
+                      updateDraftField('preferences', event.target.value)
+                    }
+                    className={inputClassName}
+                    placeholder="Likes, dislikes, restrictions, food habits"
+                  />
+                </label>
+                <label className="md:col-span-2">
+                  <span className={labelClassName}>Current Eating Pattern</span>
+                  <textarea
+                    rows={3}
+                    value={draftClient.currentEatingPattern}
+                    onChange={(event) =>
+                      updateDraftField(
+                        'currentEatingPattern',
+                        event.target.value,
+                      )
+                    }
+                    className={inputClassName}
+                    placeholder="Morning to night current routine"
+                  />
+                </label>
+                <label className="md:col-span-2">
+                  <span className={labelClassName}>Internal Notes</span>
+                  <textarea
+                    rows={3}
+                    value={draftClient.notes}
+                    onChange={(event) =>
+                      updateDraftField('notes', event.target.value)
+                    }
+                    className={inputClassName}
+                    placeholder="Payment notes, follow-up comments, admin reminders"
+                  />
+                </label>
+              </div>
+            </section>
+
+            <section className="rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
+              <div className="mb-5 flex items-center justify-between gap-4">
+                <div className="flex items-center gap-3">
+                  <FileText size={20} className="text-leaf-700" />
+                  <div>
+                    <h2 className="text-lg font-bold text-slate-900">
+                      Plan History
+                    </h2>
+                    <p className="text-sm text-slate-500">
+                      Save plans from the diet plan editor to track history here.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid gap-3">
+                {selectedClientPlans.length ? (
+                  selectedClientPlans.map((record) => (
+                    <div
+                      key={record.id}
+                      className="flex flex-col gap-4 rounded-lg border border-slate-200 p-4 sm:flex-row sm:items-center sm:justify-between"
+                    >
+                      <div>
+                        <p className="font-bold text-slate-900">
+                          {record.title}
+                        </p>
+                        <p className="mt-1 text-sm text-slate-500">
+                          {record.patientName} - {record.goal || 'No goal'} -
+                          {' '}
+                          {formatDate(record.updatedAt)}
+                        </p>
+                        <span className="mt-2 inline-flex rounded-full bg-slate-100 px-2 py-1 text-xs font-semibold text-slate-600">
+                          {record.status}
+                        </span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => openPlanRecord(record)}
+                        className="inline-flex items-center justify-center gap-2 rounded-lg border border-slate-200 px-4 py-3 text-sm font-semibold text-slate-700 transition hover:border-leaf-300 hover:text-leaf-700"
+                      >
+                        <ClipboardList size={17} />
+                        Open
+                      </button>
+                    </div>
+                  ))
+                ) : (
+                  <div className="rounded-lg border border-dashed border-slate-300 p-6 text-center text-sm text-slate-500">
+                    No saved plans yet.
+                  </div>
+                )}
+              </div>
+            </section>
+
+            <section className="rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
+              <div className="mb-5 flex items-center gap-3">
+                <CalendarClock size={20} className="text-leaf-700" />
+                <h2 className="text-lg font-bold text-slate-900">
+                  Workflow Snapshot
+                </h2>
+              </div>
+              <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+                {clients.slice(0, 6).map((client) => (
+                  <div
+                    key={client.id}
+                    className="rounded-lg border border-slate-200 p-4"
+                  >
+                    <p className="font-bold text-slate-900">{client.name}</p>
+                    <p className="mt-1 text-sm text-slate-500">
+                      {statusLabelMap[client.status]} -{' '}
+                      {paymentLabelMap[client.paymentStatus]}
+                    </p>
+                    <p className="mt-2 text-xs font-semibold text-slate-500">
+                      Follow-up: {formatDate(client.followUpDate)}
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => startDietPlan(client)}
+                      className="mt-4 inline-flex items-center justify-center gap-2 rounded-lg bg-leaf-600 px-3 py-2 text-sm font-semibold text-white transition hover:bg-leaf-700"
+                    >
+                      <Send size={15} />
+                      Plan
+                    </button>
+                  </div>
+                ))}
+                {!clients.length && (
+                  <p className="text-sm text-slate-500">
+                    Add the first client to start tracking workflow.
+                  </p>
+                )}
+              </div>
+            </section>
+          </div>
+        </div>
+      </section>
+    </main>
+  );
+};
+
+export default AdminPanel;

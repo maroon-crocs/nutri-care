@@ -10,6 +10,7 @@ const SocialPresence = React.lazy(() => import('./components/SocialPresence'));
 const Testimonials = React.lazy(() => import('./components/Testimonials'));
 const Footer = React.lazy(() => import('./components/Footer'));
 const DietPlanCreator = React.lazy(() => import('./components/DietPlanCreator'));
+const AdminPanel = React.lazy(() => import('./components/AdminPanel'));
 
 const App: React.FC = () => {
   const [bmiResult, setBmiResult] = useState<BMIResult | null>(null);
@@ -23,7 +24,12 @@ const App: React.FC = () => {
   }, []);
 
   useEffect(() => {
-    if (!currentHash || currentHash === '#' || currentHash === '#/diet-plan') {
+    if (
+      !currentHash ||
+      currentHash === '#' ||
+      currentHash === '#/diet-plan' ||
+      currentHash === '#/admin'
+    ) {
       window.scrollTo({ top: 0, behavior: 'smooth' });
       return;
     }
@@ -36,16 +42,21 @@ const App: React.FC = () => {
   }, [currentHash]);
 
   const isDietPlanPage = currentHash === '#/diet-plan';
+  const isAdminPage = currentHash === '#/admin';
 
   return (
     <div className="min-h-screen font-sans selection:bg-leaf-200 selection:text-leaf-900">
-      <Header currentPage={isDietPlanPage ? 'diet-plan' : 'home'} />
+      <Header
+        currentPage={isDietPlanPage ? 'diet-plan' : isAdminPage ? 'admin' : 'home'}
+      />
       <React.Suspense fallback={
         <div className="flex min-h-screen items-center justify-center p-20">
           <div className="h-12 w-12 animate-spin rounded-full border-b-2 border-leaf-600"></div>
         </div>
       }>
-        {isDietPlanPage ? (
+        {isAdminPage ? (
+          <AdminPanel />
+        ) : isDietPlanPage ? (
           <DietPlanCreator />
         ) : (
           <main>

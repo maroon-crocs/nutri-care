@@ -32,6 +32,13 @@ import {
   containsDietPlanAccessCode,
   DIET_PLAN_ACCESS_CODE,
 } from '../utils/dietPlanAccess.ts';
+import {
+  buildClientIntakeMessage,
+  createAdminClient,
+  createDietPlanFromAdminClient,
+  normalizeAdminClients,
+  normalizeAdminDietPlanRecords,
+} from '../utils/adminPanel.ts';
 
 test('createEmptyDietPlan creates seven days with printable meal slots', () => {
   const plan = createEmptyDietPlan();
@@ -357,6 +364,60 @@ test('diet plan access helper unlocks the hidden route from admin code', () => {
   );
 
   assert.equal(url, 'https://nutricare4u.com/#/diet-plan');
-  assert.match(response ?? '', /Admin diet plan link unlocked/);
+  assert.match(response ?? '', /Admin workspace unlocked/);
+  assert.match(response ?? '', /https:\/\/nutricare4u\.com\/#\/admin/);
   assert.match(response ?? '', /https:\/\/nutricare4u\.com\/#\/diet-plan/);
+});
+
+test('admin helpers normalize clients and create diet plan drafts', () => {
+  const clients = normalizeAdminClients([
+    {
+      id: 'client-1',
+      name: 'Sana',
+      instagramHandle: '@sana.fit',
+      age: '31',
+      height: '160 cm',
+      weight: '65 kg',
+      dietType: 'Veg',
+      goal: 'PCOS weight loss',
+      workoutStatus: 'Yes',
+      workoutType: 'Walking',
+      paymentStatus: 'paid',
+      status: 'planPending',
+      wakeSleepTime: '7 AM to 11 PM',
+      cuisinePreference: 'Indian home-style',
+    },
+  ]);
+
+  assert.equal(clients.length, 1);
+  assert.equal(clients[0].paymentStatus, 'paid');
+  assert.equal(clients[0].status, 'planPending');
+
+  const plan = createDietPlanFromAdminClient(clients[0]);
+
+  assert.equal(plan.sourceClientId, 'client-1');
+  assert.equal(plan.patient.name, 'Sana');
+  assert.equal(plan.patient.age, '31');
+  assert.match(plan.patient.preferences, /Wake\/sleep: 7 AM to 11 PM/);
+  assert.match(plan.patient.preferences, /Cuisine: Indian home-style/);
+});
+
+test('admin helpers create intake copy and normalize plan records', () => {
+  const client = createAdminClient({ id: 'client-2', name: 'Ayesha' });
+  const plan = createDietPlanFromAdminClient(client);
+  const message = buildClientIntakeMessage(client);
+  const records = normalizeAdminDietPlanRecords([
+    {
+      id: plan.id,
+      clientId: client.id,
+      plan,
+      status: 'final',
+    },
+  ]);
+
+  assert.match(message, /Hi Ayesha/);
+  assert.match(message, /Age, height, weight/);
+  assert.equal(records.length, 1);
+  assert.equal(records[0].clientId, 'client-2');
+  assert.equal(records[0].status, 'final');
 });

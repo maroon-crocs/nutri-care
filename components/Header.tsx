@@ -2,13 +2,13 @@ import React, { useState, useEffect } from 'react';
 import { Menu, X, Leaf } from 'lucide-react';
 
 interface HeaderProps {
-  currentPage?: 'home' | 'diet-plan';
+  currentPage?: 'home' | 'diet-plan' | 'admin';
 }
 
 const Header: React.FC<HeaderProps> = ({ currentPage = 'home' }) => {
   const [isScrolled, setIsScrolled] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-  const isSolid = isScrolled || currentPage === 'diet-plan';
+  const isSolid = isScrolled || currentPage === 'diet-plan' || currentPage === 'admin';
 
   useEffect(() => {
     const handleScroll = () => {

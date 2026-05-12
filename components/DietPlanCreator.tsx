@@ -39,6 +39,7 @@ import {
   normalizeInstagramHandle,
   splitTextIntoShareChunks,
 } from '../utils/dietPlan';
+import { saveAdminDietPlanRecord } from '../utils/adminPanel';
 import { downloadDietPlanPdf } from '../utils/dietPlanPdf';
 
 type NoticeState = {
@@ -412,6 +413,24 @@ const DietPlanCreator: React.FC = () => {
     }
   };
 
+  const saveToAdminHistory = (status: 'draft' | 'final') => {
+    try {
+      saveAdminDietPlanRecord(plan, status);
+      setNotice({
+        type: 'success',
+        message:
+          status === 'final'
+            ? 'Final plan saved to admin history.'
+            : 'Draft saved to admin history.',
+      });
+    } catch {
+      setNotice({
+        type: 'error',
+        message: 'Could not save plan history in this browser.',
+      });
+    }
+  };
+
   const patientSummary = [
     plan.patient.name.trim() || 'New patient',
     plan.patient.goal.trim() || 'Weekly nutrition plan',
@@ -450,6 +469,22 @@ const DietPlanCreator: React.FC = () => {
               >
                 <Download size={18} />
                 Download PDF
+              </button>
+              <button
+                type="button"
+                onClick={() => saveToAdminHistory('draft')}
+                className="inline-flex items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700 transition hover:border-leaf-300 hover:text-leaf-700"
+              >
+                <FileText size={18} />
+                Save Draft
+              </button>
+              <button
+                type="button"
+                onClick={() => saveToAdminHistory('final')}
+                className="inline-flex items-center justify-center gap-2 rounded-lg border border-leaf-200 bg-leaf-50 px-4 py-3 text-sm font-semibold text-leaf-800 transition hover:border-leaf-300"
+              >
+                <Check size={18} />
+                Save Final
               </button>
               <button
                 type="button"
