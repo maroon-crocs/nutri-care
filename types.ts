@@ -88,6 +88,19 @@ export interface DietPlanPatient {
   preferences: string;
 }
 
+export type DietPlanGuidelineId =
+  | 'mealTiming'
+  | 'portionReview'
+  | 'hydration'
+  | 'oilSugarControl'
+  | 'postMealWalk'
+  | 'medicalReview'
+  | 'allergenAvoidance'
+  | 'medicineTiming'
+  | 'progressTracking'
+  | 'followUpWeight'
+  | 'stopIfUnwell';
+
 export interface DietPlan {
   id: string;
   title: string;
@@ -95,6 +108,7 @@ export interface DietPlan {
   patient: DietPlanPatient;
   days: DietPlanDay[];
   instructions: string;
+  selectedGuidelines: DietPlanGuidelineId[];
   updatedAt: string;
 }
 

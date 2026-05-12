@@ -14,17 +14,24 @@ import {
   Sparkles,
   UserRound,
 } from 'lucide-react';
-import type { DietPlan, DietPlanTemplateId, MealSlotKey } from '../types';
+import type {
+  DietPlan,
+  DietPlanGuidelineId,
+  DietPlanTemplateId,
+  MealSlotKey,
+} from '../types';
 import { generateDietPlanWithAI } from '../services/geminiService';
 import {
   applyDietPlanTemplate,
   buildWhatsAppDietPlanUrl,
   createEmptyDietPlan,
+  DIET_PLAN_GUIDELINE_OPTIONS,
   DIET_PLAN_STORAGE_KEY,
   DIET_PLAN_TEMPLATES,
   buildInstagramProfileUrl,
   formatDietPlanForInstagram,
   formatDietPlanForSharing,
+  getDietPlanGuidelineText,
   getWorkoutSummary,
   MEAL_SLOTS,
   mergeGeneratedDietPlan,
@@ -195,6 +202,19 @@ const DietPlanCreator: React.FC = () => {
       ...current,
       [field]: value,
     }));
+  };
+
+  const toggleGuideline = (guidelineId: DietPlanGuidelineId) => {
+    updatePlan((current) => {
+      const isSelected = current.selectedGuidelines.includes(guidelineId);
+
+      return {
+        ...current,
+        selectedGuidelines: isSelected
+          ? current.selectedGuidelines.filter((item) => item !== guidelineId)
+          : [...current.selectedGuidelines, guidelineId],
+      };
+    });
   };
 
   const updateMeal = (
@@ -990,6 +1010,55 @@ const DietPlanCreator: React.FC = () => {
               className={inputClassName}
               placeholder="Water intake, oil limits, follow-up reminders, and special notes"
             />
+
+            <div className="mt-6 border-t border-slate-100 pt-5">
+              <div className="mb-4 flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+                <div>
+                  <h3 className="text-base font-bold text-slate-900">
+                    PDF Guidelines
+                  </h3>
+                  <p className="text-sm text-slate-500">
+                    Select only the points this patient needs.
+                  </p>
+                </div>
+                <span className="text-sm font-semibold text-leaf-700">
+                  {plan.selectedGuidelines.length} selected
+                </span>
+              </div>
+
+              <div className="grid gap-3 md:grid-cols-2">
+                {DIET_PLAN_GUIDELINE_OPTIONS.map((option) => {
+                  const isSelected = plan.selectedGuidelines.includes(option.id);
+                  const guidelineText = getDietPlanGuidelineText(option.id, plan);
+
+                  return (
+                    <label
+                      key={option.id}
+                      className={`flex min-h-24 cursor-pointer gap-3 rounded-lg border p-4 transition ${
+                        isSelected
+                          ? 'border-leaf-400 bg-leaf-50'
+                          : 'border-slate-200 bg-white hover:border-leaf-200'
+                      }`}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={isSelected}
+                        onChange={() => toggleGuideline(option.id)}
+                        className="mt-1 h-4 w-4 rounded border-slate-300 text-leaf-600 focus:ring-leaf-500"
+                      />
+                      <span>
+                        <span className="block text-sm font-bold text-slate-800">
+                          {option.label}
+                        </span>
+                        <span className="mt-1 block text-sm leading-5 text-slate-500">
+                          {guidelineText || option.description}
+                        </span>
+                      </span>
+                    </label>
+                  );
+                })}
+              </div>
+            </div>
           </div>
         </div>
 

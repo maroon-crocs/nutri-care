@@ -1,7 +1,11 @@
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import type { DietPlan } from '../types';
-import { getWorkoutSummary, MEAL_SLOTS } from './dietPlan.ts';
+import {
+  buildSelectedDietPlanGuidelines,
+  getWorkoutSummary,
+  MEAL_SLOTS,
+} from './dietPlan.ts';
 
 type PdfTableData = {
   body: string[][];
@@ -178,30 +182,7 @@ export const buildDietPlanPdfMetaLines = (plan: DietPlan): string[] => {
 };
 
 export const buildDietPlanPdfGeneralGuidelines = (plan: DietPlan): string[] => {
-  const healthLines = [
-    plan.patient.healthIssues.trim()
-      ? `Health issue noted: ${plan.patient.healthIssues.trim()}. Keep changes conservative and review symptoms.`
-      : 'Review any medical condition before changing portions or food groups.',
-    plan.patient.allergies.trim()
-      ? `Avoid listed allergens completely: ${plan.patient.allergies.trim()}.`
-      : 'Confirm allergies or intolerances before sending the plan.',
-    plan.patient.medicinesSupplements.trim()
-      ? `Medicine/supplement timing noted: ${plan.patient.medicinesSupplements.trim()}. Keep timing consistent with medical advice.`
-      : 'Ask the patient to report any medicines or supplements during follow-up.',
-  ];
-
-  return [
-    'Follow early morning, breakfast, mid-morning, lunch, evening snack, and dinner in the day-wise order shown on page 1.',
-    'Keep meal timing consistent and avoid long gaps between meals.',
-    'Use home-style portions first; adjust roti, rice, or snack quantity during review.',
-    'Drink 2.5-3 liters water daily unless restricted by a doctor.',
-    'Keep oil, sugar, fried food, packaged snacks, and sweet drinks controlled.',
-    'Add a 10-15 minute walk after major meals when suitable for the patient.',
-    ...healthLines,
-    'Track hunger, cravings, sleep, bloating, energy, and digestion for the week.',
-    'Share weight or measurements only on the agreed follow-up day, not daily.',
-    'Stop or review the plan if discomfort, dizziness, allergy symptoms, or sugar crashes occur.',
-  ];
+  return buildSelectedDietPlanGuidelines(plan);
 };
 
 const buildDietPlanPdfNoteItems = (plan: DietPlan): string[] =>
@@ -218,6 +199,11 @@ export const buildDietPlanPdfNoteLines = (
     splitLongLine(doc, note, maxWidth),
   );
 };
+
+const buildDietPlanPdfGuidelinePagePoints = (plan: DietPlan): string[] => [
+  ...buildDietPlanPdfGeneralGuidelines(plan),
+  ...buildDietPlanPdfNoteItems(plan),
+];
 
 const fitTextWithEllipsis = (
   doc: jsPDF,
@@ -276,11 +262,12 @@ const drawGuidelinesPage = (
   pageWidth: number,
 ): void => {
   const contentWidth = pageWidth - PAGE_MARGIN * 2;
-  const points = [
-    ...buildDietPlanPdfGeneralGuidelines(plan),
-    ...buildDietPlanPdfNoteItems(plan),
-  ];
+  const points = buildDietPlanPdfGuidelinePagePoints(plan);
   const pageHeight = doc.internal.pageSize.getHeight();
+
+  if (!points.length) {
+    return;
+  }
 
   doc.addPage();
   drawNutriGuideLogo(doc, PAGE_MARGIN, 8, 13);

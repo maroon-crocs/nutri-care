@@ -8,6 +8,7 @@ import {
   buildInstagramProfileUrl,
   buildWhatsAppDietPlanUrl,
   createEmptyDietPlan,
+  DIET_PLAN_GUIDELINE_OPTIONS,
   formatDietPlanForInstagram,
   formatDietPlanForSharing,
   MEAL_SLOTS,
@@ -41,6 +42,7 @@ test('createEmptyDietPlan creates seven days with printable meal slots', () => {
   assert.equal(plan.patient.weight, '');
   assert.equal(plan.patient.dietType, '');
   assert.equal(plan.patient.workoutStatus, '');
+  assert.deepEqual(plan.selectedGuidelines, []);
 
   for (const day of plan.days) {
     assert.deepEqual(Object.keys(day.meals).sort(), [
@@ -74,6 +76,7 @@ test('normalizeDietPlan upgrades older saved drafts to printable meal slots', ()
         note: 'Walk after dinner.',
       },
     ],
+    selectedGuidelines: ['hydration', 'not-a-guideline'],
   });
 
   assert.equal(normalized.title, 'Old Draft');
@@ -85,6 +88,7 @@ test('normalizeDietPlan upgrades older saved drafts to printable meal slots', ()
   assert.equal(normalized.days[0].meals.breakfast, 'Poha');
   assert.equal(normalized.days[0].meals.earlyMorning, '');
   assert.equal(normalized.days[0].meals.midMorning, '');
+  assert.deepEqual(normalized.selectedGuidelines, ['hydration']);
 });
 
 test('applyDietPlanTemplate fills meals and keeps patient details', () => {
@@ -283,19 +287,29 @@ test('buildDietPlanPdfMetaLines creates compact summary copy', () => {
   assert.match(lines[1], /Food Notes: No mushrooms/);
 });
 
-test('buildDietPlanPdfGeneralGuidelines creates clear second-page guidance', () => {
+test('buildDietPlanPdfGeneralGuidelines only includes admin-selected points', () => {
   const plan = createEmptyDietPlan();
   plan.patient.healthIssues = 'PCOS';
   plan.patient.allergies = 'Peanuts';
   plan.patient.medicinesSupplements = 'Vitamin D';
 
+  assert.equal(buildDietPlanPdfGeneralGuidelines(plan).length, 0);
+
+  plan.selectedGuidelines = [
+    'hydration',
+    'allergenAvoidance',
+    'progressTracking',
+  ];
+
   const guidelines = buildDietPlanPdfGeneralGuidelines(plan);
   const guidanceText = guidelines.join(' ');
 
-  assert.ok(guidelines.length > 8);
-  assert.match(guidanceText, /Follow early morning, breakfast, mid-morning/);
+  assert.equal(guidelines.length, 3);
+  assert.match(guidanceText, /Drink 2.5-3 liters water daily/);
   assert.match(guidanceText, /Avoid listed allergens completely: Peanuts/);
   assert.match(guidanceText, /Track hunger, cravings, sleep, bloating/);
+  assert.doesNotMatch(guidanceText, /Medicine\/supplement timing noted/);
+  assert.ok(DIET_PLAN_GUIDELINE_OPTIONS.length > guidelines.length);
 });
 
 test('buildDietPlanPdfNoteLines wraps notes to the visible text column', () => {

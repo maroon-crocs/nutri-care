@@ -1,5 +1,6 @@
 import type {
   DietPlan,
+  DietPlanGuidelineId,
   DietPlanGenerationResult,
   DietPlanTemplate,
   DietPlanTemplateId,
@@ -27,6 +28,119 @@ export const MEAL_SLOTS: MealSlot[] = [
   { id: 'eveningSnack', label: 'Evening Snack', time: '5:00 PM' },
   { id: 'dinner', label: 'Dinner', time: '8:00 PM' },
 ];
+
+export type DietPlanGuidelineOption = {
+  id: DietPlanGuidelineId;
+  label: string;
+  description: string;
+  getText: (plan: DietPlan) => string;
+};
+
+export const DIET_PLAN_GUIDELINE_OPTIONS: DietPlanGuidelineOption[] = [
+  {
+    id: 'mealTiming',
+    label: 'Follow meal timings',
+    description: 'Use when the patient needs strict day-wise meal structure.',
+    getText: () =>
+      'Follow the meal timings and sequence shown in the weekly table.',
+  },
+  {
+    id: 'portionReview',
+    label: 'Review portions',
+    description: 'Useful when roti, rice, or snack quantity may need review.',
+    getText: () =>
+      'Use home-style portions first; adjust roti, rice, or snack quantity during review.',
+  },
+  {
+    id: 'hydration',
+    label: 'Hydration target',
+    description: 'Add a simple water-intake reminder.',
+    getText: () =>
+      'Drink 2.5-3 liters water daily unless restricted by a doctor.',
+  },
+  {
+    id: 'oilSugarControl',
+    label: 'Oil, sugar, fried food',
+    description: 'Good for fat loss, PCOS, diabetes, and general cleanup.',
+    getText: () =>
+      'Keep oil, sugar, fried food, packaged snacks, and sweet drinks controlled.',
+  },
+  {
+    id: 'postMealWalk',
+    label: 'Post-meal walk',
+    description: 'Use when light movement is suitable for the patient.',
+    getText: () =>
+      'Add a 10-15 minute walk after major meals when suitable for the patient.',
+  },
+  {
+    id: 'medicalReview',
+    label: 'Health issue review',
+    description: 'Use for PCOS, thyroid, diabetes, acidity, or other conditions.',
+    getText: (plan) =>
+      plan.patient.healthIssues.trim()
+        ? `Health issue noted: ${plan.patient.healthIssues.trim()}. Keep changes conservative and review symptoms.`
+        : 'Review any medical condition before changing portions or food groups.',
+  },
+  {
+    id: 'allergenAvoidance',
+    label: 'Allergy avoidance',
+    description: 'Use when allergies or intolerances are mentioned.',
+    getText: (plan) =>
+      plan.patient.allergies.trim()
+        ? `Avoid listed allergens completely: ${plan.patient.allergies.trim()}.`
+        : 'Avoid any known allergens or intolerances completely.',
+  },
+  {
+    id: 'medicineTiming',
+    label: 'Medicine timing',
+    description: 'Use when medicines or supplements are part of the routine.',
+    getText: (plan) =>
+      plan.patient.medicinesSupplements.trim()
+        ? `Medicine/supplement timing noted: ${plan.patient.medicinesSupplements.trim()}. Keep timing consistent with medical advice.`
+        : 'Keep medicine or supplement timing consistent with medical advice.',
+  },
+  {
+    id: 'progressTracking',
+    label: 'Track symptoms',
+    description: 'Useful for follow-up quality and plan adjustment.',
+    getText: () =>
+      'Track hunger, cravings, sleep, bloating, energy, and digestion for the week.',
+  },
+  {
+    id: 'followUpWeight',
+    label: 'Follow-up weight only',
+    description: 'Avoids daily weighing pressure.',
+    getText: () =>
+      'Share weight or measurements only on the agreed follow-up day, not daily.',
+  },
+  {
+    id: 'stopIfUnwell',
+    label: 'Stop if unwell',
+    description: 'Use when safety warning is needed.',
+    getText: () =>
+      'Stop or review the plan if discomfort, dizziness, allergy symptoms, or sugar crashes occur.',
+  },
+];
+
+const DIET_PLAN_GUIDELINE_IDS = new Set<DietPlanGuidelineId>(
+  DIET_PLAN_GUIDELINE_OPTIONS.map((option) => option.id),
+);
+
+export const getDietPlanGuidelineText = (
+  guidelineId: DietPlanGuidelineId,
+  plan: DietPlan,
+): string => {
+  const option = DIET_PLAN_GUIDELINE_OPTIONS.find(
+    (item) => item.id === guidelineId,
+  );
+
+  return option?.getText(plan) || '';
+};
+
+export const buildSelectedDietPlanGuidelines = (plan: DietPlan): string[] =>
+  plan.selectedGuidelines
+    .map((guidelineId) => getDietPlanGuidelineText(guidelineId, plan).trim())
+    .filter(Boolean);
 
 const emptyMeals = (): Record<MealSlotKey, string> => ({
   earlyMorning: '',
@@ -300,8 +414,8 @@ export const createEmptyDietPlan = (): DietPlan => ({
     meals: emptyMeals(),
     note: '',
   })),
-  instructions:
-    'Follow the plan as discussed. Keep water intake steady and share progress or discomfort during follow-up.',
+  instructions: '',
+  selectedGuidelines: [],
   updatedAt: new Date().toISOString(),
 });
 
@@ -316,6 +430,13 @@ export const normalizeDietPlan = (value: unknown): DietPlan => {
   const incomingDays = Array.isArray(incomingPlan.days)
     ? incomingPlan.days
     : [];
+  const selectedGuidelines = Array.isArray(incomingPlan.selectedGuidelines)
+    ? incomingPlan.selectedGuidelines.filter(
+        (guidelineId): guidelineId is DietPlanGuidelineId =>
+          typeof guidelineId === 'string' &&
+          DIET_PLAN_GUIDELINE_IDS.has(guidelineId as DietPlanGuidelineId),
+      )
+    : basePlan.selectedGuidelines;
 
   return {
     ...basePlan,
@@ -347,6 +468,7 @@ export const normalizeDietPlan = (value: unknown): DietPlan => {
             : day.note,
       };
     }),
+    selectedGuidelines,
     updatedAt:
       typeof incomingPlan.updatedAt === 'string'
         ? incomingPlan.updatedAt
