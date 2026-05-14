@@ -9,6 +9,8 @@ const Header: React.FC<HeaderProps> = ({ currentPage = 'home' }) => {
   const [isScrolled, setIsScrolled] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const isSolid = isScrolled || currentPage === 'diet-plan' || currentPage === 'admin';
+  const isAdminWorkspace =
+    currentPage === 'admin' || currentPage === 'diet-plan';
 
   useEffect(() => {
     const handleScroll = () => {
@@ -44,6 +46,7 @@ const Header: React.FC<HeaderProps> = ({ currentPage = 'home' }) => {
         </a>
 
         {/* Desktop Nav */}
+        {!isAdminWorkspace && (
         <nav className="hidden md:flex items-center gap-6">
           {navLinks.map((link) => (
             <a 
@@ -57,18 +60,21 @@ const Header: React.FC<HeaderProps> = ({ currentPage = 'home' }) => {
             </a>
           ))}
         </nav>
+        )}
 
         {/* Mobile Menu Button */}
+        {!isAdminWorkspace && (
         <button 
           className="md:hidden text-slate-700 p-2"
           onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
         >
           {isMobileMenuOpen ? <X size={24} /> : <Menu size={24} />}
         </button>
+        )}
       </div>
 
       {/* Mobile Nav */}
-      {isMobileMenuOpen && (
+      {isMobileMenuOpen && !isAdminWorkspace && (
         <div className="md:hidden absolute top-full left-0 w-full bg-white shadow-xl border-t border-slate-100 p-6 flex flex-col gap-4 animate-in slide-in-from-top-5">
           {navLinks.map((link) => (
             <a 

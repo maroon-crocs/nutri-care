@@ -3,6 +3,8 @@ import {
   ArrowLeft,
   CalendarDays,
   Check,
+  ChevronLeft,
+  ChevronRight,
   Clipboard,
   Copy,
   Download,
@@ -70,10 +72,21 @@ const DIET_TYPE_OPTIONS = ['Veg', 'Eggetarian', 'Non-veg'] as const;
 const WORKOUT_STATUS_OPTIONS = ['Yes', 'No'] as const;
 
 type FlowStep = {
+  id: WizardStepId;
   label: string;
   detail: string;
   isDone: boolean;
 };
+
+type WizardStepId = 'patient' | 'draft' | 'meals' | 'pdf' | 'share';
+
+const WIZARD_STEP_ORDER: WizardStepId[] = [
+  'patient',
+  'draft',
+  'meals',
+  'pdf',
+  'share',
+];
 
 const joinLabels = (values: string[]): string => {
   if (values.length <= 1) {
@@ -139,6 +152,8 @@ const DietPlanCreator: React.FC = () => {
   const [isGeneratingDietPlan, setIsGeneratingDietPlan] = useState(false);
   const [aiReviewNotes, setAiReviewNotes] = useState<string[]>([]);
   const [instagramChunkIndex, setInstagramChunkIndex] = useState(0);
+  const [activeWizardStep, setActiveWizardStep] =
+    useState<WizardStepId>('patient');
 
   useEffect(() => {
     let isMounted = true;
@@ -238,33 +253,60 @@ const DietPlanCreator: React.FC = () => {
   );
   const flowSteps: FlowStep[] = [
     {
-      label: 'Client',
+      id: 'patient',
+      label: 'Patient',
       detail: isClientLinked ? 'Linked to saved customer' : 'Start from admin client',
-      isDone: isClientLinked,
-    },
-    {
-      label: 'Intake',
-      detail: aiMissingFields.length
-        ? `${aiMissingFields.length} field${aiMissingFields.length === 1 ? '' : 's'} needed`
-        : 'Ready for AI',
       isDone: aiMissingFields.length === 0,
     },
     {
-      label: 'Draft',
+      id: 'draft',
+      label: 'AI Draft',
+      detail: aiMissingFields.length
+        ? `${aiMissingFields.length} field${aiMissingFields.length === 1 ? '' : 's'} needed`
+        : 'Ready to generate',
+      isDone: hasMealDraft,
+    },
+    {
+      id: 'meals',
+      label: 'Meals',
       detail: hasMealDraft ? 'Meals added' : 'Generate or enter meals',
       isDone: hasMealDraft,
     },
     {
+      id: 'pdf',
       label: 'PDF',
       detail: hasPdfGuidance ? 'Guidance selected' : 'Select final PDF notes',
       isDone: hasPdfGuidance,
     },
     {
+      id: 'share',
       label: 'Save',
       detail: 'Final stores PDF per customer',
-      isDone: false,
+      isDone: hasMealDraft && hasPdfGuidance && isClientLinked,
     },
   ];
+  const activeStepIndex = WIZARD_STEP_ORDER.indexOf(activeWizardStep);
+  const activeStep = flowSteps.find((step) => step.id === activeWizardStep) || flowSteps[0];
+  const canGoBack = activeStepIndex > 0;
+  const canGoNext = activeStepIndex < WIZARD_STEP_ORDER.length - 1;
+
+  const goToPreviousStep = () => {
+    if (!canGoBack) {
+      return;
+    }
+
+    setActiveWizardStep(WIZARD_STEP_ORDER[activeStepIndex - 1]);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const goToNextStep = () => {
+    if (!canGoNext) {
+      return;
+    }
+
+    setActiveWizardStep(WIZARD_STEP_ORDER[activeStepIndex + 1]);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
 
   useEffect(() => {
     if (instagramChunkIndex >= instagramChunks.length) {
@@ -657,22 +699,6 @@ const DietPlanCreator: React.FC = () => {
               </button>
               <button
                 type="button"
-                onClick={copyPlan}
-                className="inline-flex items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700 transition hover:border-leaf-300 hover:text-leaf-700"
-              >
-                <Clipboard size={18} />
-                Copy Plan
-              </button>
-              <button
-                type="button"
-                onClick={handleDownloadPdf}
-                className="inline-flex items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700 transition hover:border-leaf-300 hover:text-leaf-700"
-              >
-                <Download size={18} />
-                Download PDF
-              </button>
-              <button
-                type="button"
                 onClick={() => saveToAdminHistory('draft')}
                 className="inline-flex items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700 transition hover:border-leaf-300 hover:text-leaf-700"
               >
@@ -693,14 +719,6 @@ const DietPlanCreator: React.FC = () => {
                 <Check size={18} />
                 Save Final
               </button>
-              <button
-                type="button"
-                onClick={sendToWhatsApp}
-                className="inline-flex items-center justify-center gap-2 rounded-lg bg-leaf-600 px-4 py-3 text-sm font-semibold text-white shadow-lg shadow-leaf-100 transition hover:bg-leaf-700"
-              >
-                <Send size={18} />
-                Send WhatsApp
-              </button>
             </div>
           </div>
 
@@ -719,12 +737,16 @@ const DietPlanCreator: React.FC = () => {
 
           <div className="mt-6 grid gap-3 md:grid-cols-5">
             {flowSteps.map((step, index) => (
-              <div
+              <button
                 key={step.label}
-                className={`rounded-lg border p-4 ${
-                  step.isDone
-                    ? 'border-leaf-200 bg-leaf-50'
-                    : 'border-slate-200 bg-slate-50'
+                type="button"
+                onClick={() => setActiveWizardStep(step.id)}
+                className={`rounded-lg border p-4 text-left transition ${
+                  step.id === activeWizardStep
+                    ? 'border-leaf-500 bg-white shadow-sm ring-2 ring-leaf-100'
+                    : step.isDone
+                      ? 'border-leaf-200 bg-leaf-50 hover:border-leaf-300'
+                      : 'border-slate-200 bg-slate-50 hover:border-slate-300'
                 }`}
               >
                 <div className="mb-2 flex items-center justify-between gap-2">
@@ -743,7 +765,7 @@ const DietPlanCreator: React.FC = () => {
                 </div>
                 <p className="font-bold text-slate-900">{step.label}</p>
                 <p className="mt-1 text-sm text-slate-500">{step.detail}</p>
-              </div>
+              </button>
             ))}
           </div>
         </div>
@@ -751,6 +773,43 @@ const DietPlanCreator: React.FC = () => {
 
       <section className="container mx-auto grid gap-6 px-6 py-8 lg:grid-cols-[minmax(0,1fr)_380px]">
         <div className="space-y-6">
+          <div className="rounded-lg border border-leaf-200 bg-white p-5 shadow-sm">
+            <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+              <div>
+                <p className="text-xs font-bold uppercase tracking-[0.14em] text-leaf-600">
+                  Step {activeStepIndex + 1} of {WIZARD_STEP_ORDER.length}
+                </p>
+                <h2 className="mt-1 text-2xl font-bold text-slate-950">
+                  {activeStep.label}
+                </h2>
+                <p className="mt-1 text-sm text-slate-500">
+                  {activeStep.detail}
+                </p>
+              </div>
+              <div className="flex flex-wrap gap-3">
+                <button
+                  type="button"
+                  onClick={goToPreviousStep}
+                  disabled={!canGoBack}
+                  className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg border border-slate-200 px-4 text-sm font-semibold text-slate-700 transition hover:border-leaf-300 hover:text-leaf-700 disabled:cursor-not-allowed disabled:border-slate-100 disabled:text-slate-300"
+                >
+                  <ChevronLeft size={17} />
+                  Back
+                </button>
+                <button
+                  type="button"
+                  onClick={goToNextStep}
+                  disabled={!canGoNext}
+                  className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-leaf-600 px-5 text-sm font-semibold text-white transition hover:bg-leaf-700 disabled:cursor-not-allowed disabled:bg-slate-300"
+                >
+                  {canGoNext ? `Next: ${flowSteps[activeStepIndex + 1].label}` : 'Ready'}
+                  <ChevronRight size={17} />
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {activeWizardStep === 'patient' && (
           <div className="rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
             <div className="mb-6 flex items-center gap-3">
               <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-leaf-50 text-leaf-700">
@@ -998,7 +1057,9 @@ const DietPlanCreator: React.FC = () => {
               </label>
             </div>
           </div>
+          )}
 
+          {activeWizardStep === 'share' && (
           <div className="rounded-lg border border-pink-200 bg-white p-6 shadow-sm">
             <div className="flex flex-col gap-5 xl:flex-row xl:items-center xl:justify-between">
               <div className="max-w-2xl">
@@ -1084,7 +1145,9 @@ const DietPlanCreator: React.FC = () => {
               </div>
             )}
           </div>
+          )}
 
+          {activeWizardStep === 'draft' && (
           <div className="rounded-lg border border-leaf-200 bg-white p-6 shadow-sm">
             <div className="flex flex-col gap-5 xl:flex-row xl:items-center xl:justify-between">
               <div className="max-w-2xl">
@@ -1158,7 +1221,9 @@ const DietPlanCreator: React.FC = () => {
               </div>
             )}
           </div>
+          )}
 
+          {activeWizardStep === 'meals' && (
           <div className="rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
             <div className="mb-6 flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
               <div>
@@ -1258,7 +1323,9 @@ const DietPlanCreator: React.FC = () => {
               </label>
             </div>
           </div>
+          )}
 
+          {activeWizardStep === 'pdf' && (
           <div className="rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
             <div className="mb-4 flex items-center justify-between gap-4">
               <h2 className="text-lg font-bold text-slate-900">
@@ -1329,6 +1396,89 @@ const DietPlanCreator: React.FC = () => {
                     </label>
                   );
                 })}
+              </div>
+            </div>
+          </div>
+          )}
+
+          <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+            <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+              <button
+                type="button"
+                onClick={goToPreviousStep}
+                disabled={!canGoBack}
+                className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg border border-slate-200 px-4 text-sm font-semibold text-slate-700 transition hover:border-leaf-300 hover:text-leaf-700 disabled:cursor-not-allowed disabled:border-slate-100 disabled:text-slate-300"
+              >
+                <ChevronLeft size={17} />
+                Back
+              </button>
+              <div className="flex flex-wrap gap-3">
+                {activeWizardStep === 'draft' && (
+                  <button
+                    type="button"
+                    onClick={generatePlanWithAI}
+                    disabled={isGeneratingDietPlan}
+                    className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-leaf-600 px-5 text-sm font-semibold text-white transition hover:bg-leaf-700 disabled:cursor-not-allowed disabled:bg-slate-300"
+                  >
+                    {isGeneratingDietPlan ? (
+                      <Loader2 size={17} className="animate-spin" />
+                    ) : (
+                      <Sparkles size={17} />
+                    )}
+                    {isGeneratingDietPlan ? 'Generating...' : 'Generate AI Draft'}
+                  </button>
+                )}
+                {activeWizardStep === 'pdf' && (
+                  <>
+                    <button
+                      type="button"
+                      onClick={handleDownloadPdf}
+                      className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg border border-slate-200 px-4 text-sm font-semibold text-slate-700 transition hover:border-leaf-300 hover:text-leaf-700"
+                    >
+                      <Download size={17} />
+                      Preview PDF
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => saveToAdminHistory('final')}
+                      disabled={!isClientLinked}
+                      className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-leaf-600 px-5 text-sm font-semibold text-white transition hover:bg-leaf-700 disabled:cursor-not-allowed disabled:bg-slate-300"
+                    >
+                      <Check size={17} />
+                      Save Final PDF
+                    </button>
+                  </>
+                )}
+                {activeWizardStep === 'share' && (
+                  <>
+                    <button
+                      type="button"
+                      onClick={copyPlan}
+                      className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg border border-slate-200 px-4 text-sm font-semibold text-slate-700 transition hover:border-leaf-300 hover:text-leaf-700"
+                    >
+                      <Clipboard size={17} />
+                      Copy Plan
+                    </button>
+                    <button
+                      type="button"
+                      onClick={sendToWhatsApp}
+                      className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-leaf-600 px-5 text-sm font-semibold text-white transition hover:bg-leaf-700"
+                    >
+                      <Send size={17} />
+                      Send WhatsApp
+                    </button>
+                  </>
+                )}
+                {canGoNext && (
+                  <button
+                    type="button"
+                    onClick={goToNextStep}
+                    className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-slate-900 px-5 text-sm font-semibold text-white transition hover:bg-slate-800"
+                  >
+                    Continue
+                    <ChevronRight size={17} />
+                  </button>
+                )}
               </div>
             </div>
           </div>
