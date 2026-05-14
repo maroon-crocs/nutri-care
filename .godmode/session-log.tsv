@@ -9,3 +9,4 @@ timestamp	skill	iterations	kept	discarded	stop_reason	outcome
 2026-04-24T18:48:36Z	build	1	1	0	target_reached	early and mid-morning PDF columns removed and styled guideline page added
 2026-05-14T17:43:30Z	build	1	1	0	target_reached	admin client dashboard/detail flow implemented with diet history, PDF access, edit, and delete actions
 2026-05-14T18:05:39Z	build	1	1	0	target_reached	diet plan creation converted to focused stepper workflow with admin navigation hidden
+2026-05-14T18:20:45Z	build	1	1	0	target_reached	sharing moved from diet plan form to per-plan history actions with final save CTA retained

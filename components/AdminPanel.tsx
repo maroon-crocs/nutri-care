@@ -6,6 +6,7 @@ import {
   Copy,
   Download,
   FileText,
+  Instagram,
   LogOut,
   Pencil,
   Plus,
@@ -43,7 +44,13 @@ import {
   readAdminDietPlanRecordsAsync,
   saveAdminClientAsync,
 } from '../utils/adminPanel';
-import { DIET_PLAN_STORAGE_KEY } from '../utils/dietPlan';
+import {
+  buildInstagramProfileUrl,
+  buildWhatsAppDietPlanUrl,
+  DIET_PLAN_STORAGE_KEY,
+  formatDietPlanForInstagram,
+  formatDietPlanForSharing,
+} from '../utils/dietPlan';
 import {
   DIET_PLAN_ACCESS_CODE,
   containsDietPlanAccessCode,
@@ -468,6 +475,64 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ currentHash }) => {
         type: 'error',
         message:
           error instanceof Error ? error.message : 'Could not open stored PDF.',
+      });
+    }
+  };
+
+  const copyPlanRecord = async (record: AdminDietPlanRecord) => {
+    try {
+      await navigator.clipboard.writeText(formatDietPlanForSharing(record.plan));
+      setNotice({
+        type: 'success',
+        message: `"${record.title}" copied for sharing.`,
+      });
+    } catch {
+      setNotice({
+        type: 'error',
+        message: 'Copy failed. Open the plan and copy manually.',
+      });
+    }
+  };
+
+  const sendPlanRecordToWhatsApp = (record: AdminDietPlanRecord) => {
+    if (!record.plan.patient.phone.trim()) {
+      setNotice({
+        type: 'error',
+        message: 'Add a WhatsApp number to this client before sending.',
+      });
+      return;
+    }
+
+    window.open(
+      buildWhatsAppDietPlanUrl(record.plan),
+      '_blank',
+      'noopener,noreferrer',
+    );
+  };
+
+  const sharePlanRecordOnInstagram = async (record: AdminDietPlanRecord) => {
+    try {
+      await navigator.clipboard.writeText(formatDietPlanForInstagram(record.plan));
+      const instagramHandle = record.plan.patient.instagramHandle.trim();
+
+      if (instagramHandle) {
+        window.open(
+          buildInstagramProfileUrl(instagramHandle),
+          '_blank',
+          'noopener,noreferrer',
+        );
+      }
+
+      setNotice({
+        type: 'success',
+        message: instagramHandle
+          ? 'Instagram message copied and profile opened.'
+          : 'Instagram message copied. No handle is saved for this client.',
+      });
+    } catch {
+      setNotice({
+        type: 'error',
+        message: 'Instagram copy failed. Open the plan and copy manually.',
       });
     }
   };
@@ -1298,37 +1363,65 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ currentHash }) => {
                           {record.status}
                         </span>
                       </div>
-                      <div className="flex flex-wrap gap-2">
-                        <button
-                          type="button"
-                          onClick={() => openPlanRecord(record)}
-                          className="inline-flex items-center justify-center gap-2 rounded-lg border border-slate-200 px-4 py-3 text-sm font-semibold text-slate-700 transition hover:border-leaf-300 hover:text-leaf-700"
-                        >
-                          <ClipboardList size={17} />
-                          Edit Plan
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => downloadStoredPdf(record)}
-                          disabled={!record.pdfPath}
-                          className="inline-flex items-center justify-center gap-2 rounded-lg border border-slate-200 px-4 py-3 text-sm font-semibold text-slate-700 transition hover:border-leaf-300 hover:text-leaf-700 disabled:cursor-not-allowed disabled:border-slate-100 disabled:text-slate-300"
-                          title={
-                            record.pdfPath
-                              ? 'Open stored customer PDF'
-                              : 'Save Final from the diet plan editor to store PDF'
-                          }
-                        >
-                          <Download size={17} />
-                          PDF
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => deletePlanRecord(record)}
-                          className="inline-flex items-center justify-center gap-2 rounded-lg border border-red-200 px-4 py-3 text-sm font-semibold text-red-700 transition hover:bg-red-50"
-                        >
-                          <Trash2 size={17} />
-                          Delete
-                        </button>
+                      <div className="flex flex-col gap-2 sm:items-end">
+                        <div className="flex flex-wrap gap-2">
+                          <button
+                            type="button"
+                            onClick={() => openPlanRecord(record)}
+                            className="inline-flex items-center justify-center gap-2 rounded-lg border border-slate-200 px-4 py-3 text-sm font-semibold text-slate-700 transition hover:border-leaf-300 hover:text-leaf-700"
+                          >
+                            <ClipboardList size={17} />
+                            Edit Plan
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => downloadStoredPdf(record)}
+                            disabled={!record.pdfPath}
+                            className="inline-flex items-center justify-center gap-2 rounded-lg border border-slate-200 px-4 py-3 text-sm font-semibold text-slate-700 transition hover:border-leaf-300 hover:text-leaf-700 disabled:cursor-not-allowed disabled:border-slate-100 disabled:text-slate-300"
+                            title={
+                              record.pdfPath
+                                ? 'Open stored customer PDF'
+                                : 'Save Diet Plan from the diet plan editor to store PDF'
+                            }
+                          >
+                            <Download size={17} />
+                            PDF
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => deletePlanRecord(record)}
+                            className="inline-flex items-center justify-center gap-2 rounded-lg border border-red-200 px-4 py-3 text-sm font-semibold text-red-700 transition hover:bg-red-50"
+                          >
+                            <Trash2 size={17} />
+                            Delete
+                          </button>
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                          <button
+                            type="button"
+                            onClick={() => copyPlanRecord(record)}
+                            className="inline-flex items-center justify-center gap-2 rounded-lg border border-slate-200 px-4 py-3 text-sm font-semibold text-slate-700 transition hover:border-leaf-300 hover:text-leaf-700"
+                          >
+                            <Copy size={17} />
+                            Copy
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => sendPlanRecordToWhatsApp(record)}
+                            className="inline-flex items-center justify-center gap-2 rounded-lg border border-leaf-200 bg-leaf-50 px-4 py-3 text-sm font-semibold text-leaf-800 transition hover:border-leaf-300"
+                          >
+                            <Send size={17} />
+                            WhatsApp
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => sharePlanRecordOnInstagram(record)}
+                            className="inline-flex items-center justify-center gap-2 rounded-lg border border-pink-200 bg-pink-50 px-4 py-3 text-sm font-semibold text-pink-700 transition hover:border-pink-300"
+                          >
+                            <Instagram size={17} />
+                            Instagram
+                          </button>
+                        </div>
                       </div>
                     </div>
                   ))

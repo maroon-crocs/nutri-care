@@ -18,3 +18,4 @@ round	task_id	agent_time_ms	status	conflicted_file	notes
 17	task-17	0	merged		removed early and mid-morning PDF columns and added styled guideline page
 18	task-18	0	merged		client detail route, diet history actions, and deletion support verified
 19	task-19	0	merged		diet plan creation wizard and admin header focus mode verified
+20	task-20	0	merged		moved sharing out of diet plan form and onto saved plan cards
