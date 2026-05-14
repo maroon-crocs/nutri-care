@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import {
+  ArrowLeft,
   CalendarClock,
   ClipboardList,
   Copy,
@@ -13,6 +14,7 @@ import {
   Send,
   ShieldCheck,
   Sparkles,
+  Trash2,
   UserRound,
   UsersRound,
 } from 'lucide-react';
@@ -26,10 +28,14 @@ import {
   ADMIN_CLIENT_STATUSES,
   ADMIN_PAYMENT_STATUSES,
   ADMIN_SESSION_STORAGE_KEY,
+  buildAdminClientRouteHash,
   buildClientIntakeMessage,
   createAdminClient,
   createDietPlanFromAdminClient,
+  deleteAdminClientAsync,
+  deleteAdminDietPlanRecordAsync,
   getAdminDietPlanPdfSignedUrl,
+  parseAdminClientRouteId,
   readAdminClientsAsync,
   readAdminDietPlanRecordsAsync,
   saveAdminClientAsync,
@@ -49,6 +55,10 @@ type AdminNotice = {
   type: 'success' | 'error';
   message: string;
 } | null;
+
+type AdminPanelProps = {
+  currentHash: string;
+};
 
 const inputClassName =
   'w-full rounded-lg border border-slate-200 bg-white px-4 py-3 text-sm text-slate-800 outline-none transition focus:border-leaf-500 focus:ring-2 focus:ring-leaf-100';
@@ -80,7 +90,7 @@ const formatDate = (value: string): string => {
 
 const createFreshClient = (): AdminClient => createAdminClient();
 
-const AdminPanel: React.FC = () => {
+const AdminPanel: React.FC<AdminPanelProps> = ({ currentHash }) => {
   const [isAuthenticated, setIsAuthenticated] = useState(() =>
     !isSupabaseConfigured &&
     window.sessionStorage.getItem(ADMIN_SESSION_STORAGE_KEY) === 'unlocked',
@@ -101,9 +111,17 @@ const AdminPanel: React.FC = () => {
   );
   const [notice, setNotice] = useState<AdminNotice>(null);
 
+  const routeClientId = useMemo(
+    () => parseAdminClientRouteId(currentHash),
+    [currentHash],
+  );
+  const isClientDetailRoute = Boolean(routeClientId);
+
   const activeClient = useMemo(
-    () => clients.find((client) => client.id === activeClientId) || null,
-    [activeClientId, clients],
+    () =>
+      clients.find((client) => client.id === (routeClientId || activeClientId)) ||
+      null,
+    [activeClientId, clients, routeClientId],
   );
 
   const filteredClients = useMemo(() => {
@@ -248,6 +266,19 @@ const AdminPanel: React.FC = () => {
     };
   }, []);
 
+  useEffect(() => {
+    if (!routeClientId) {
+      return;
+    }
+
+    const routedClient = clients.find((client) => client.id === routeClientId);
+
+    if (routedClient) {
+      setActiveClientId(routedClient.id);
+      setDraftClient(routedClient);
+    }
+  }, [clients, routeClientId]);
+
   const refreshData = async () => {
     try {
       await loadAdminData();
@@ -285,12 +316,14 @@ const AdminPanel: React.FC = () => {
   const selectClient = (client: AdminClient) => {
     setActiveClientId(client.id);
     setDraftClient(client);
+    window.location.hash = buildAdminClientRouteHash(client.id);
   };
 
   const startNewClient = () => {
     setActiveClientId('');
     setDraftClient(createFreshClient());
     setNotice(null);
+    window.location.hash = '#/admin';
   };
 
   const saveClient = async () => {
@@ -305,6 +338,7 @@ const AdminPanel: React.FC = () => {
       setActiveClientId(clientToSave.id);
       setDraftClient(clientToSave);
       setNotice({ type: 'success', message: 'Client saved.' });
+      window.location.hash = buildAdminClientRouteHash(clientToSave.id);
     } catch (error) {
       setNotice({
         type: 'error',
@@ -357,6 +391,57 @@ const AdminPanel: React.FC = () => {
       JSON.stringify(record.plan),
     );
     window.location.hash = '#/diet-plan';
+  };
+
+  const deletePlanRecord = async (record: AdminDietPlanRecord) => {
+    const confirmed = window.confirm(
+      `Delete "${record.title}" for ${record.patientName}? This will also remove the stored PDF.`,
+    );
+
+    if (!confirmed) {
+      return;
+    }
+
+    try {
+      await deleteAdminDietPlanRecordAsync(record);
+      await loadAdminData();
+      setNotice({ type: 'success', message: 'Diet plan deleted.' });
+    } catch (error) {
+      setNotice({
+        type: 'error',
+        message:
+          error instanceof Error ? error.message : 'Could not delete diet plan.',
+      });
+    }
+  };
+
+  const deleteClient = async () => {
+    if (!activeClient) {
+      return;
+    }
+
+    const confirmed = window.confirm(
+      `Delete ${activeClient.name || 'this client'} and all saved diet plans?`,
+    );
+
+    if (!confirmed) {
+      return;
+    }
+
+    try {
+      await deleteAdminClientAsync(activeClient.id);
+      await loadAdminData();
+      setActiveClientId('');
+      setDraftClient(createFreshClient());
+      window.location.hash = '#/admin';
+      setNotice({ type: 'success', message: 'Client and diet plans deleted.' });
+    } catch (error) {
+      setNotice({
+        type: 'error',
+        message:
+          error instanceof Error ? error.message : 'Could not delete client.',
+      });
+    }
   };
 
   const downloadStoredPdf = async (record: AdminDietPlanRecord) => {
@@ -522,14 +607,29 @@ const AdminPanel: React.FC = () => {
                 Nutritionist admin
               </p>
               <h1 className="font-serif text-4xl font-bold text-slate-950 md:text-5xl">
-                Client Workflow Dashboard
+                {isClientDetailRoute
+                  ? activeClient?.name || 'Client Details'
+                  : 'Client Workflow Dashboard'}
               </h1>
               <p className="mt-4 max-w-3xl text-base leading-relaxed text-slate-600">
-                Manage clients, intake details, payment status, follow-ups, and
-                saved diet plan history from one private workspace.
+                {isClientDetailRoute
+                  ? 'Edit intake details, review every saved diet plan, open drafts, download PDFs, and clean up this client record.'
+                  : 'Manage clients, intake details, payment status, follow-ups, and saved diet plan history from one private workspace.'}
               </p>
             </div>
             <div className="flex flex-wrap gap-3">
+              {isClientDetailRoute && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    window.location.hash = '#/admin';
+                  }}
+                  className="inline-flex items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700 transition hover:border-leaf-300 hover:text-leaf-700"
+                >
+                  <ArrowLeft size={18} />
+                  Dashboard
+                </button>
+              )}
               <button
                 type="button"
                 onClick={refreshData}
@@ -590,6 +690,88 @@ const AdminPanel: React.FC = () => {
 
         <div className="grid gap-6 xl:grid-cols-[360px_minmax(0,1fr)]">
           <aside className="space-y-4 xl:sticky xl:top-28 xl:self-start">
+            {isClientDetailRoute ? (
+              <div className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+                <div className="mb-4 flex items-center gap-3">
+                  <UserRound size={20} className="text-leaf-700" />
+                  <h2 className="text-lg font-bold text-slate-900">
+                    Client Summary
+                  </h2>
+                </div>
+                {activeClient ? (
+                  <div className="space-y-4">
+                    <div className="rounded-lg border border-slate-100 bg-slate-50 p-4">
+                      <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">
+                        Status
+                      </p>
+                      <p className="mt-2 font-bold text-slate-900">
+                        {statusLabelMap[activeClient.status]}
+                      </p>
+                      <p className="mt-1 text-sm text-slate-500">
+                        Payment: {paymentLabelMap[activeClient.paymentStatus]}
+                      </p>
+                    </div>
+                    <div className="grid grid-cols-2 gap-3 text-sm">
+                      <div className="rounded-lg border border-slate-100 p-3">
+                        <p className="font-semibold text-slate-500">Plans</p>
+                        <p className="mt-1 text-2xl font-bold text-slate-950">
+                          {selectedClientPlans.length}
+                        </p>
+                      </div>
+                      <div className="rounded-lg border border-slate-100 p-3">
+                        <p className="font-semibold text-slate-500">
+                          Follow-up
+                        </p>
+                        <p className="mt-1 font-bold text-slate-950">
+                          {formatDate(activeClient.followUpDate)}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="space-y-2 text-sm text-slate-600">
+                      <p>
+                        <span className="font-semibold text-slate-800">
+                          Contact:
+                        </span>{' '}
+                        {activeClient.phone ||
+                          activeClient.instagramHandle ||
+                          activeClient.email ||
+                          'Not added'}
+                      </p>
+                      <p>
+                        <span className="font-semibold text-slate-800">
+                          Goal:
+                        </span>{' '}
+                        {activeClient.goal || 'Not added'}
+                      </p>
+                    </div>
+                    <div className="grid gap-2">
+                      <button
+                        type="button"
+                        onClick={() => startDietPlan(activeClient)}
+                        className="inline-flex items-center justify-center gap-2 rounded-lg bg-slate-900 px-4 py-3 text-sm font-semibold text-white transition hover:bg-slate-800"
+                      >
+                        <Sparkles size={17} />
+                        New Diet Plan
+                      </button>
+                      <button
+                        type="button"
+                        onClick={deleteClient}
+                        className="inline-flex items-center justify-center gap-2 rounded-lg border border-red-200 px-4 py-3 text-sm font-semibold text-red-700 transition hover:bg-red-50"
+                      >
+                        <Trash2 size={17} />
+                        Delete Client
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="rounded-lg border border-dashed border-slate-300 p-5 text-sm text-slate-500">
+                    This client was not found. Go back to the dashboard and
+                    select an existing client.
+                  </div>
+                )}
+              </div>
+            ) : (
+              <>
             <div className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
               <div className="mb-4 flex items-center gap-3">
                 <UsersRound size={20} className="text-leaf-700" />
@@ -662,6 +844,8 @@ const AdminPanel: React.FC = () => {
                 </div>
               )}
             </div>
+              </>
+            )}
           </aside>
 
           <div className="space-y-6">
@@ -1039,7 +1223,9 @@ const AdminPanel: React.FC = () => {
                       Plan History
                     </h2>
                     <p className="text-sm text-slate-500">
-                      Save plans from the diet plan editor to track history here.
+                      {activeClient
+                        ? 'All saved diet plans for this client are available here.'
+                        : 'Recent saved plans from the diet plan editor appear here.'}
                     </p>
                   </div>
                 </div>
@@ -1072,7 +1258,7 @@ const AdminPanel: React.FC = () => {
                           className="inline-flex items-center justify-center gap-2 rounded-lg border border-slate-200 px-4 py-3 text-sm font-semibold text-slate-700 transition hover:border-leaf-300 hover:text-leaf-700"
                         >
                           <ClipboardList size={17} />
-                          Open
+                          Edit Plan
                         </button>
                         <button
                           type="button"
@@ -1087,6 +1273,14 @@ const AdminPanel: React.FC = () => {
                         >
                           <Download size={17} />
                           PDF
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => deletePlanRecord(record)}
+                          className="inline-flex items-center justify-center gap-2 rounded-lg border border-red-200 px-4 py-3 text-sm font-semibold text-red-700 transition hover:bg-red-50"
+                        >
+                          <Trash2 size={17} />
+                          Delete
                         </button>
                       </div>
                     </div>

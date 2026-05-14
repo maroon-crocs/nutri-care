@@ -33,11 +33,15 @@ import {
   DIET_PLAN_ACCESS_CODE,
 } from '../utils/dietPlanAccess.ts';
 import {
+  buildAdminClientRouteHash,
   buildClientIntakeMessage,
   createAdminClient,
   createDietPlanFromAdminClient,
   normalizeAdminClients,
   normalizeAdminDietPlanRecords,
+  parseAdminClientRouteId,
+  removeAdminClientFromLists,
+  removeAdminDietPlanRecord,
 } from '../utils/adminPanel.ts';
 
 test('createEmptyDietPlan creates seven days with printable meal slots', () => {
@@ -422,4 +426,40 @@ test('admin helpers create intake copy and normalize plan records', () => {
   assert.equal(records[0].clientId, 'client-2');
   assert.equal(records[0].status, 'final');
   assert.equal(records[0].pdfPath, 'owner/client/plan.pdf');
+});
+
+test('admin route helpers build and parse client detail URLs', () => {
+  const route = buildAdminClientRouteHash('client id/with space');
+
+  assert.equal(route, '#/admin/clients/client%20id%2Fwith%20space');
+  assert.equal(parseAdminClientRouteId(route), 'client id/with space');
+  assert.equal(parseAdminClientRouteId('#/admin'), '');
+});
+
+test('admin delete helpers remove clients and their diet plan records', () => {
+  const clientA = createAdminClient({ id: 'client-a', name: 'A' });
+  const clientB = createAdminClient({ id: 'client-b', name: 'B' });
+  const planA = createDietPlanFromAdminClient(clientA);
+  const planB = createDietPlanFromAdminClient(clientB);
+  const records = normalizeAdminDietPlanRecords([
+    { id: 'plan-a', clientId: clientA.id, plan: planA },
+    { id: 'plan-b', clientId: clientB.id, plan: planB },
+  ]);
+
+  assert.equal(removeAdminDietPlanRecord(records, 'plan-a').length, 1);
+
+  const nextData = removeAdminClientFromLists(
+    [clientA, clientB],
+    records,
+    clientA.id,
+  );
+
+  assert.deepEqual(
+    nextData.clients.map((client) => client.id),
+    ['client-b'],
+  );
+  assert.deepEqual(
+    nextData.records.map((record) => record.clientId),
+    ['client-b'],
+  );
 });

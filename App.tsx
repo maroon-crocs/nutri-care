@@ -28,7 +28,8 @@ const App: React.FC = () => {
       !currentHash ||
       currentHash === '#' ||
       currentHash === '#/diet-plan' ||
-      currentHash === '#/admin'
+      currentHash === '#/admin' ||
+      currentHash.startsWith('#/admin/clients/')
     ) {
       window.scrollTo({ top: 0, behavior: 'smooth' });
       return;
@@ -42,7 +43,8 @@ const App: React.FC = () => {
   }, [currentHash]);
 
   const isDietPlanPage = currentHash === '#/diet-plan';
-  const isAdminPage = currentHash === '#/admin';
+  const isAdminPage =
+    currentHash === '#/admin' || currentHash.startsWith('#/admin/clients/');
 
   return (
     <div className="min-h-screen font-sans selection:bg-leaf-200 selection:text-leaf-900">
@@ -55,7 +57,7 @@ const App: React.FC = () => {
         </div>
       }>
         {isAdminPage ? (
-          <AdminPanel />
+          <AdminPanel currentHash={currentHash} />
         ) : isDietPlanPage ? (
           <DietPlanCreator />
         ) : (

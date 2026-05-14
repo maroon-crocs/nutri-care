@@ -16,3 +16,4 @@ round	task_id	agent_time_ms	status	conflicted_file	notes
 15	task-15	0	merged		production build passed
 16	task-16	0	merged		branded light-color weekly table PDF verified with tests and sample export
 17	task-17	0	merged		removed early and mid-morning PDF columns and added styled guideline page
+18	task-18	0	merged		client detail route, diet history actions, and deletion support verified

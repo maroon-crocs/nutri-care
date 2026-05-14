@@ -12,6 +12,7 @@ export const ADMIN_SESSION_STORAGE_KEY = 'nutriguide:admin-session';
 export const ADMIN_CLIENTS_STORAGE_KEY = 'nutriguide:admin-clients';
 export const ADMIN_PLAN_RECORDS_STORAGE_KEY = 'nutriguide:admin-plan-records';
 export const DIET_PLAN_PDF_BUCKET = 'diet-plan-pdfs';
+export const ADMIN_PANEL_ROUTE_HASH = '#/admin';
 
 export const ADMIN_CLIENT_STATUSES: Array<{
   id: AdminClientStatus;
@@ -60,6 +61,25 @@ const getPaymentStatus = (value: unknown): AdminPaymentStatus =>
 
 const getObject = (value: unknown): Record<string, unknown> =>
   value && typeof value === 'object' ? (value as Record<string, unknown>) : {};
+
+export const buildAdminClientRouteHash = (clientId: string): string =>
+  `${ADMIN_PANEL_ROUTE_HASH}/clients/${encodeURIComponent(clientId)}`;
+
+export const parseAdminClientRouteId = (hash: string): string => {
+  const routePrefix = `${ADMIN_PANEL_ROUTE_HASH}/clients/`;
+
+  if (!hash.startsWith(routePrefix)) {
+    return '';
+  }
+
+  const rawClientId = hash.slice(routePrefix.length).split(/[?#]/)[0];
+
+  try {
+    return decodeURIComponent(rawClientId);
+  } catch {
+    return rawClientId;
+  }
+};
 
 type ClientRow = {
   id: string;
@@ -324,6 +344,21 @@ export const writeAdminClients = (clients: AdminClient[]): void => {
   );
 };
 
+export const removeAdminDietPlanRecord = (
+  records: AdminDietPlanRecord[],
+  recordId: string,
+): AdminDietPlanRecord[] =>
+  records.filter((record) => record.id !== recordId);
+
+export const removeAdminClientFromLists = (
+  clients: AdminClient[],
+  records: AdminDietPlanRecord[],
+  clientId: string,
+): { clients: AdminClient[]; records: AdminDietPlanRecord[] } => ({
+  clients: clients.filter((client) => client.id !== clientId),
+  records: records.filter((record) => record.clientId !== clientId),
+});
+
 export const saveAdminClientAsync = async (
   client: AdminClient,
 ): Promise<AdminClient> => {
@@ -514,6 +549,19 @@ export const writeAdminDietPlanRecords = (
   );
 };
 
+const removeStoredPdfPaths = async (paths: string[]): Promise<void> => {
+  if (!paths.length) {
+    return;
+  }
+
+  const client = requireSupabase();
+  const { error } = await client.storage.from(DIET_PLAN_PDF_BUCKET).remove(paths);
+
+  if (error) {
+    throw error;
+  }
+};
+
 export const saveAdminDietPlanRecord = (
   plan: DietPlan,
   status: AdminDietPlanRecord['status'] = 'draft',
@@ -662,6 +710,88 @@ export const getAdminDietPlanPdfSignedUrl = async (
   }
 
   return data.signedUrl;
+};
+
+export const deleteAdminDietPlanRecordAsync = async (
+  record: AdminDietPlanRecord,
+): Promise<void> => {
+  if (!isSupabaseConfigured) {
+    writeAdminDietPlanRecords(
+      removeAdminDietPlanRecord(readAdminDietPlanRecords(), record.id),
+    );
+    return;
+  }
+
+  const client = requireSupabase();
+  const ownerId = await getAuthenticatedUserId();
+
+  if (record.pdfPath) {
+    await removeStoredPdfPaths([record.pdfPath]);
+  }
+
+  const { error } = await client
+    .from('diet_plans')
+    .delete()
+    .eq('id', record.id)
+    .eq('owner_id', ownerId);
+
+  if (error) {
+    throw error;
+  }
+};
+
+export const deleteAdminClientAsync = async (
+  clientId: string,
+): Promise<void> => {
+  if (!isSupabaseConfigured) {
+    const nextData = removeAdminClientFromLists(
+      readAdminClients(),
+      readAdminDietPlanRecords(),
+      clientId,
+    );
+    writeAdminClients(nextData.clients);
+    writeAdminDietPlanRecords(nextData.records);
+    return;
+  }
+
+  const client = requireSupabase();
+  const ownerId = await getAuthenticatedUserId();
+  const { data, error: readPlansError } = await client
+    .from('diet_plans')
+    .select('id,pdf_path')
+    .eq('client_id', clientId)
+    .eq('owner_id', ownerId)
+    .returns<Array<Pick<DietPlanRow, 'id' | 'pdf_path'>>>();
+
+  if (readPlansError) {
+    throw readPlansError;
+  }
+
+  const pdfPaths = (data || [])
+    .map((record) => record.pdf_path)
+    .filter((path): path is string => Boolean(path));
+
+  await removeStoredPdfPaths(pdfPaths);
+
+  const { error: deletePlansError } = await client
+    .from('diet_plans')
+    .delete()
+    .eq('client_id', clientId)
+    .eq('owner_id', ownerId);
+
+  if (deletePlansError) {
+    throw deletePlansError;
+  }
+
+  const { error: deleteClientError } = await client
+    .from('clients')
+    .delete()
+    .eq('id', clientId)
+    .eq('owner_id', ownerId);
+
+  if (deleteClientError) {
+    throw deleteClientError;
+  }
 };
 
 export const buildClientIntakeMessage = (client?: AdminClient): string => {
