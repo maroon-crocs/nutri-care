@@ -25,6 +25,14 @@ The migration creates:
 - `followups`
 - row-level security policies for admin-owned data
 
+Apply the PDF storage migration too:
+
+```text
+supabase/migrations/202605140001_diet_plan_pdf_storage.sql
+```
+
+It creates the private `diet-plan-pdfs` bucket. Final diet plan PDFs are stored under the signed-in admin user id, grouped by client id and plan id.
+
 Create the admin user in Supabase Auth:
 
 - Email: `nutricareu4@gmail.com`

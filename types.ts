@@ -185,6 +185,7 @@ export interface AdminDietPlanRecord {
   goal: string;
   status: 'draft' | 'final';
   plan: DietPlan;
+  pdfPath: string;
   createdAt: string;
   updatedAt: string;
 }

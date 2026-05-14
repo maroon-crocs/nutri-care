@@ -11,6 +11,7 @@ import { isSupabaseConfigured, supabase } from './supabaseClient.ts';
 export const ADMIN_SESSION_STORAGE_KEY = 'nutriguide:admin-session';
 export const ADMIN_CLIENTS_STORAGE_KEY = 'nutriguide:admin-clients';
 export const ADMIN_PLAN_RECORDS_STORAGE_KEY = 'nutriguide:admin-plan-records';
+export const DIET_PLAN_PDF_BUCKET = 'diet-plan-pdfs';
 
 export const ADMIN_CLIENT_STATUSES: Array<{
   id: AdminClientStatus;
@@ -101,6 +102,7 @@ type DietPlanRow = {
   goal: string;
   status: 'draft' | 'final';
   plan_json: unknown;
+  pdf_path: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -422,6 +424,7 @@ export const normalizeAdminDietPlanRecord = (
     goal: getText(item.goal) || plan.patient.goal,
     status: item.status === 'final' ? 'final' : 'draft',
     plan,
+    pdfPath: getText(item.pdfPath) || getText(item.pdf_path),
     createdAt: getText(item.createdAt) || now,
     updatedAt: getText(item.updatedAt) || now,
   };
@@ -459,6 +462,7 @@ const mapDietPlanRowToAdminRecord = (row: DietPlanRow): AdminDietPlanRecord => {
     goal: row.goal || plan.patient.goal,
     status: row.status,
     plan,
+    pdfPath: row.pdf_path || '',
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
@@ -468,6 +472,7 @@ const mapPlanToDietPlanRow = (
   plan: DietPlan,
   ownerId: string,
   status: AdminDietPlanRecord['status'],
+  pdfPath = '',
 ): Omit<DietPlanRow, 'created_at' | 'updated_at'> => ({
   id: plan.id,
   owner_id: ownerId,
@@ -476,6 +481,7 @@ const mapPlanToDietPlanRow = (
   goal: plan.patient.goal.trim(),
   status,
   plan_json: normalizeDietPlan(plan),
+  pdf_path: pdfPath || null,
 });
 
 export const readAdminDietPlanRecordsAsync = async (): Promise<
@@ -524,6 +530,7 @@ export const saveAdminDietPlanRecord = (
     goal: normalizedPlan.patient.goal.trim(),
     status,
     plan: normalizedPlan,
+    pdfPath: existingRecord?.pdfPath || '',
     createdAt: existingRecord?.createdAt || now,
     updatedAt: now,
   };
@@ -557,6 +564,7 @@ export const saveAdminDietPlanRecord = (
 export const saveAdminDietPlanRecordAsync = async (
   plan: DietPlan,
   status: AdminDietPlanRecord['status'] = 'draft',
+  options: { pdfBlob?: Blob; pdfFileName?: string } = {},
 ): Promise<AdminDietPlanRecord> => {
   if (!isSupabaseConfigured) {
     return saveAdminDietPlanRecord(plan, status);
@@ -565,9 +573,48 @@ export const saveAdminDietPlanRecordAsync = async (
   const client = requireSupabase();
   const ownerId = await getAuthenticatedUserId();
   const normalizedPlan = normalizeDietPlan(plan);
+  let pdfPath = '';
+
+  if (options.pdfBlob) {
+    const pdfFileName = options.pdfFileName || `${normalizedPlan.id}.pdf`;
+    const safeFileName = pdfFileName.replace(/[^a-z0-9.-]+/gi, '-');
+    pdfPath = [
+      ownerId,
+      normalizedPlan.sourceClientId || 'unassigned',
+      normalizedPlan.id,
+      safeFileName,
+    ].join('/');
+
+    const { error: uploadError } = await client.storage
+      .from(DIET_PLAN_PDF_BUCKET)
+      .upload(pdfPath, options.pdfBlob, {
+        cacheControl: '3600',
+        contentType: 'application/pdf',
+        upsert: true,
+      });
+
+    if (uploadError) {
+      throw uploadError;
+    }
+  }
+
+  if (!pdfPath) {
+    const existingRecord = await client
+      .from('diet_plans')
+      .select('pdf_path')
+      .eq('id', normalizedPlan.id)
+      .maybeSingle<{ pdf_path: string | null }>();
+
+    if (existingRecord.error) {
+      throw existingRecord.error;
+    }
+
+    pdfPath = existingRecord.data?.pdf_path || '';
+  }
+
   const { data, error } = await client
     .from('diet_plans')
-    .upsert(mapPlanToDietPlanRow(normalizedPlan, ownerId, status))
+    .upsert(mapPlanToDietPlanRow(normalizedPlan, ownerId, status, pdfPath))
     .select('*')
     .single<DietPlanRow>();
 
@@ -590,7 +637,31 @@ export const saveAdminDietPlanRecordAsync = async (
         clientId: normalizedPlan.sourceClientId || '',
         plan: normalizedPlan,
         status,
+        pdfPath,
       })!;
+};
+
+export const getAdminDietPlanPdfSignedUrl = async (
+  record: AdminDietPlanRecord,
+): Promise<string> => {
+  if (!record.pdfPath) {
+    throw new Error('No PDF is stored for this plan yet.');
+  }
+
+  if (!isSupabaseConfigured) {
+    throw new Error('Stored PDFs are available after Supabase setup.');
+  }
+
+  const client = requireSupabase();
+  const { data, error } = await client.storage
+    .from(DIET_PLAN_PDF_BUCKET)
+    .createSignedUrl(record.pdfPath, 60 * 10);
+
+  if (error) {
+    throw error;
+  }
+
+  return data.signedUrl;
 };
 
 export const buildClientIntakeMessage = (client?: AdminClient): string => {

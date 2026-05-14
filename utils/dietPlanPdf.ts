@@ -437,6 +437,11 @@ export const createDietPlanPdf = (plan: DietPlan): jsPDF => {
   return doc;
 };
 
+export const createDietPlanPdfBlob = (plan: DietPlan): Blob => {
+  const doc = createDietPlanPdf(plan);
+  return doc.output('blob');
+};
+
 export const downloadDietPlanPdf = (plan: DietPlan): void => {
   const doc = createDietPlanPdf(plan);
   doc.save(buildDietPlanPdfFileName(plan));

@@ -412,6 +412,7 @@ test('admin helpers create intake copy and normalize plan records', () => {
       clientId: client.id,
       plan,
       status: 'final',
+      pdfPath: 'owner/client/plan.pdf',
     },
   ]);
 
@@ -420,4 +421,5 @@ test('admin helpers create intake copy and normalize plan records', () => {
   assert.equal(records.length, 1);
   assert.equal(records[0].clientId, 'client-2');
   assert.equal(records[0].status, 'final');
+  assert.equal(records[0].pdfPath, 'owner/client/plan.pdf');
 });

@@ -3,6 +3,7 @@ import {
   CalendarClock,
   ClipboardList,
   Copy,
+  Download,
   FileText,
   LogOut,
   Plus,
@@ -28,6 +29,7 @@ import {
   buildClientIntakeMessage,
   createAdminClient,
   createDietPlanFromAdminClient,
+  getAdminDietPlanPdfSignedUrl,
   readAdminClientsAsync,
   readAdminDietPlanRecordsAsync,
   saveAdminClientAsync,
@@ -355,6 +357,19 @@ const AdminPanel: React.FC = () => {
       JSON.stringify(record.plan),
     );
     window.location.hash = '#/diet-plan';
+  };
+
+  const downloadStoredPdf = async (record: AdminDietPlanRecord) => {
+    try {
+      const signedUrl = await getAdminDietPlanPdfSignedUrl(record);
+      window.open(signedUrl, '_blank', 'noopener,noreferrer');
+    } catch (error) {
+      setNotice({
+        type: 'error',
+        message:
+          error instanceof Error ? error.message : 'Could not open stored PDF.',
+      });
+    }
   };
 
   const handleLogin = async (event: React.FormEvent<HTMLFormElement>) => {
@@ -1050,14 +1065,30 @@ const AdminPanel: React.FC = () => {
                           {record.status}
                         </span>
                       </div>
-                      <button
-                        type="button"
-                        onClick={() => openPlanRecord(record)}
-                        className="inline-flex items-center justify-center gap-2 rounded-lg border border-slate-200 px-4 py-3 text-sm font-semibold text-slate-700 transition hover:border-leaf-300 hover:text-leaf-700"
-                      >
-                        <ClipboardList size={17} />
-                        Open
-                      </button>
+                      <div className="flex flex-wrap gap-2">
+                        <button
+                          type="button"
+                          onClick={() => openPlanRecord(record)}
+                          className="inline-flex items-center justify-center gap-2 rounded-lg border border-slate-200 px-4 py-3 text-sm font-semibold text-slate-700 transition hover:border-leaf-300 hover:text-leaf-700"
+                        >
+                          <ClipboardList size={17} />
+                          Open
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => downloadStoredPdf(record)}
+                          disabled={!record.pdfPath}
+                          className="inline-flex items-center justify-center gap-2 rounded-lg border border-slate-200 px-4 py-3 text-sm font-semibold text-slate-700 transition hover:border-leaf-300 hover:text-leaf-700 disabled:cursor-not-allowed disabled:border-slate-100 disabled:text-slate-300"
+                          title={
+                            record.pdfPath
+                              ? 'Open stored customer PDF'
+                              : 'Save Final from the diet plan editor to store PDF'
+                          }
+                        >
+                          <Download size={17} />
+                          PDF
+                        </button>
+                      </div>
                     </div>
                   ))
                 ) : (

@@ -40,7 +40,11 @@ import {
   splitTextIntoShareChunks,
 } from '../utils/dietPlan';
 import { saveAdminDietPlanRecordAsync } from '../utils/adminPanel';
-import { downloadDietPlanPdf } from '../utils/dietPlanPdf';
+import {
+  buildDietPlanPdfFileName,
+  createDietPlanPdfBlob,
+  downloadDietPlanPdf,
+} from '../utils/dietPlanPdf';
 
 type NoticeState = {
   type: 'success' | 'error';
@@ -415,12 +419,16 @@ const DietPlanCreator: React.FC = () => {
 
   const saveToAdminHistory = async (status: 'draft' | 'final') => {
     try {
-      await saveAdminDietPlanRecordAsync(plan, status);
+      const shouldStorePdf = status === 'final';
+      await saveAdminDietPlanRecordAsync(plan, status, {
+        pdfBlob: shouldStorePdf ? createDietPlanPdfBlob(plan) : undefined,
+        pdfFileName: shouldStorePdf ? buildDietPlanPdfFileName(plan) : undefined,
+      });
       setNotice({
         type: 'success',
         message:
           status === 'final'
-            ? 'Final plan saved to admin history.'
+            ? 'Final plan and PDF saved to customer history.'
             : 'Draft saved to admin history.',
       });
     } catch {
