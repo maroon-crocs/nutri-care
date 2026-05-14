@@ -72,11 +72,10 @@ type FlowStep = {
   isDone: boolean;
 };
 
-type WizardStepId = 'patient' | 'draft' | 'meals' | 'pdf';
+type WizardStepId = 'patient' | 'meals' | 'pdf';
 
 const WIZARD_STEP_ORDER: WizardStepId[] = [
   'patient',
-  'draft',
   'meals',
   'pdf',
 ];
@@ -246,17 +245,13 @@ const DietPlanCreator: React.FC = () => {
       isDone: aiMissingFields.length === 0,
     },
     {
-      id: 'draft',
-      label: 'AI Draft',
-      detail: aiMissingFields.length
-        ? `${aiMissingFields.length} field${aiMissingFields.length === 1 ? '' : 's'} needed`
-        : 'Ready to generate',
-      isDone: hasMealDraft,
-    },
-    {
       id: 'meals',
       label: 'Meals',
-      detail: hasMealDraft ? 'Meals added' : 'Generate or enter meals',
+      detail: hasMealDraft
+        ? 'Meals added'
+        : aiMissingFields.length
+          ? `${aiMissingFields.length} intake field${aiMissingFields.length === 1 ? '' : 's'} needed`
+          : 'Generate with AI or enter meals',
       isDone: hasMealDraft,
     },
     {
@@ -388,7 +383,7 @@ const DietPlanCreator: React.FC = () => {
     if (missingFields.length > 0) {
       setNotice({
         type: 'error',
-        message: `Add ${joinLabels(missingFields)} before generating an AI draft.`,
+        message: `Add ${joinLabels(missingFields)} before generating AI meals.`,
       });
       return;
     }
@@ -407,7 +402,7 @@ const DietPlanCreator: React.FC = () => {
       setActiveDayIndex(0);
       setNotice({
         type: 'success',
-        message: 'AI draft added. Review and edit before sending.',
+        message: 'AI meals added. Review and edit before saving.',
       });
     } catch (error) {
       setNotice({
@@ -965,82 +960,6 @@ const DietPlanCreator: React.FC = () => {
           </div>
           )}
 
-          {activeWizardStep === 'draft' && (
-          <div className="rounded-lg border border-leaf-200 bg-white p-6 shadow-sm">
-            <div className="flex flex-col gap-5 xl:flex-row xl:items-center xl:justify-between">
-              <div className="max-w-2xl">
-                <div className="mb-3 flex items-center gap-3">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-leaf-600 text-white">
-                    <Sparkles size={20} />
-                  </div>
-                  <div>
-                    <h2 className="text-lg font-bold text-slate-900">
-                      AI Diet Draft
-                    </h2>
-                    <p className="text-sm text-slate-500">
-                      Uses body data, diet type, allergies, health issues,
-                      workout details, medicines, goal, and food notes from the
-                      patient details.
-                    </p>
-                  </div>
-                </div>
-                <div className="flex flex-wrap gap-2 text-xs font-semibold">
-                  <span className="rounded-full bg-slate-100 px-3 py-1 text-slate-600">
-                    Age: {plan.patient.age.trim() || 'Needed'}
-                  </span>
-                  <span className="rounded-full bg-slate-100 px-3 py-1 text-slate-600">
-                    Height/Weight:{' '}
-                    {plan.patient.height.trim() && plan.patient.weight.trim()
-                      ? `${plan.patient.height.trim()} / ${plan.patient.weight.trim()}`
-                      : 'Needed'}
-                  </span>
-                  <span className="rounded-full bg-slate-100 px-3 py-1 text-slate-600">
-                    Diet: {plan.patient.dietType.trim() || 'Needed'}
-                  </span>
-                  <span className="rounded-full bg-slate-100 px-3 py-1 text-slate-600">
-                    Goal: {plan.patient.goal.trim() || 'Needed'}
-                  </span>
-                  <span className="rounded-full bg-slate-100 px-3 py-1 text-slate-600">
-                    Workout: {workoutSummary || 'Needed'}
-                  </span>
-                  <span className="rounded-full bg-slate-100 px-3 py-1 text-slate-600">
-                    Health Context: {healthContextAdded ? 'Added' : 'Not added'}
-                  </span>
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={generatePlanWithAI}
-                disabled={isGeneratingDietPlan}
-                className="inline-flex min-h-12 items-center justify-center gap-2 rounded-lg bg-leaf-600 px-5 text-sm font-semibold text-white shadow-lg shadow-leaf-100 transition hover:bg-leaf-700 disabled:cursor-not-allowed disabled:bg-slate-300 disabled:shadow-none"
-              >
-                {isGeneratingDietPlan ? (
-                  <Loader2 size={18} className="animate-spin" />
-                ) : (
-                  <Sparkles size={18} />
-                )}
-                {isGeneratingDietPlan ? 'Generating...' : 'Generate AI Draft'}
-              </button>
-            </div>
-
-            {aiReviewNotes.length > 0 && (
-              <div className="mt-5 rounded-lg border border-amber-200 bg-amber-50 p-4">
-                <p className="mb-2 text-sm font-bold text-amber-900">
-                  Review before sending
-                </p>
-                <ul className="space-y-2 text-sm text-amber-800">
-                  {aiReviewNotes.map((note, index) => (
-                    <li key={`${note}-${index}`} className="flex gap-2">
-                      <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-amber-500" />
-                      <span>{note}</span>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            )}
-          </div>
-          )}
-
           {activeWizardStep === 'meals' && (
           <div className="rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
             <div className="mb-6 flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
@@ -1049,10 +968,23 @@ const DietPlanCreator: React.FC = () => {
                   Weekly Meals
                 </h2>
                 <p className="text-sm text-slate-500">
-                  {activeDay.label} has {MEAL_SLOTS.length} meal slots.
+                  Generate meals from intake details, then edit portions and swaps day by day.
                 </p>
               </div>
               <div className="flex flex-wrap gap-3">
+                <button
+                  type="button"
+                  onClick={generatePlanWithAI}
+                  disabled={isGeneratingDietPlan}
+                  className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-leaf-600 px-4 text-sm font-semibold text-white transition hover:bg-leaf-700 disabled:cursor-not-allowed disabled:bg-slate-300"
+                >
+                  {isGeneratingDietPlan ? (
+                    <Loader2 size={17} className="animate-spin" />
+                  ) : (
+                    <Sparkles size={17} />
+                  )}
+                  {isGeneratingDietPlan ? 'Generating...' : 'Generate Meals'}
+                </button>
                 <select
                   value={selectedTemplateId}
                   onChange={(event) =>
@@ -1091,6 +1023,60 @@ const DietPlanCreator: React.FC = () => {
                   Monday to Week
                 </button>
               </div>
+            </div>
+
+            <div className="mb-6 rounded-lg border border-leaf-200 bg-leaf-50 p-4">
+              <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
+                <div>
+                  <div className="mb-2 flex items-center gap-2">
+                    <Sparkles size={18} className="text-leaf-700" />
+                    <p className="font-bold text-slate-900">AI meal helper</p>
+                  </div>
+                  <p className="max-w-3xl text-sm text-slate-600">
+                    Uses age, height, weight, goal, diet type, allergies, health issues,
+                    workout, medicines, and food notes from Patient details.
+                  </p>
+                </div>
+                <div className="flex flex-wrap gap-2 text-xs font-semibold">
+                  <span className="rounded-full bg-white px-3 py-1 text-slate-600">
+                    Age: {plan.patient.age.trim() || 'Needed'}
+                  </span>
+                  <span className="rounded-full bg-white px-3 py-1 text-slate-600">
+                    Height/Weight:{' '}
+                    {plan.patient.height.trim() && plan.patient.weight.trim()
+                      ? `${plan.patient.height.trim()} / ${plan.patient.weight.trim()}`
+                      : 'Needed'}
+                  </span>
+                  <span className="rounded-full bg-white px-3 py-1 text-slate-600">
+                    Diet: {plan.patient.dietType.trim() || 'Needed'}
+                  </span>
+                  <span className="rounded-full bg-white px-3 py-1 text-slate-600">
+                    Goal: {plan.patient.goal.trim() || 'Needed'}
+                  </span>
+                  <span className="rounded-full bg-white px-3 py-1 text-slate-600">
+                    Workout: {workoutSummary || 'Needed'}
+                  </span>
+                  <span className="rounded-full bg-white px-3 py-1 text-slate-600">
+                    Health: {healthContextAdded ? 'Added' : 'Not added'}
+                  </span>
+                </div>
+              </div>
+
+              {aiReviewNotes.length > 0 && (
+                <div className="mt-4 rounded-lg border border-amber-200 bg-amber-50 p-4">
+                  <p className="mb-2 text-sm font-bold text-amber-900">
+                    Review before saving
+                  </p>
+                  <ul className="space-y-2 text-sm text-amber-800">
+                    {aiReviewNotes.map((note, index) => (
+                      <li key={`${note}-${index}`} className="flex gap-2">
+                        <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-amber-500" />
+                        <span>{note}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
             </div>
 
             <div className="mb-6 grid grid-cols-2 gap-2 sm:grid-cols-4 xl:grid-cols-7">
@@ -1231,21 +1217,6 @@ const DietPlanCreator: React.FC = () => {
                 Back
               </button>
               <div className="flex flex-wrap gap-3">
-                {activeWizardStep === 'draft' && (
-                  <button
-                    type="button"
-                    onClick={generatePlanWithAI}
-                    disabled={isGeneratingDietPlan}
-                    className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-leaf-600 px-5 text-sm font-semibold text-white transition hover:bg-leaf-700 disabled:cursor-not-allowed disabled:bg-slate-300"
-                  >
-                    {isGeneratingDietPlan ? (
-                      <Loader2 size={17} className="animate-spin" />
-                    ) : (
-                      <Sparkles size={17} />
-                    )}
-                    {isGeneratingDietPlan ? 'Generating...' : 'Generate AI Draft'}
-                  </button>
-                )}
                 {activeWizardStep === 'pdf' && (
                   <>
                     <button
