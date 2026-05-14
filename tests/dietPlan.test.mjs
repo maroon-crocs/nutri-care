@@ -33,6 +33,8 @@ import {
   DIET_PLAN_ACCESS_CODE,
 } from '../utils/dietPlanAccess.ts';
 import {
+  ADMIN_NEW_CLIENT_ROUTE_HASH,
+  buildAdminClientEditRouteHash,
   buildAdminClientRouteHash,
   buildClientIntakeMessage,
   createAdminClient,
@@ -430,10 +432,14 @@ test('admin helpers create intake copy and normalize plan records', () => {
 
 test('admin route helpers build and parse client detail URLs', () => {
   const route = buildAdminClientRouteHash('client id/with space');
+  const editRoute = buildAdminClientEditRouteHash('client id/with space');
 
   assert.equal(route, '#/admin/clients/client%20id%2Fwith%20space');
+  assert.equal(editRoute, '#/admin/clients/client%20id%2Fwith%20space/edit');
   assert.equal(parseAdminClientRouteId(route), 'client id/with space');
+  assert.equal(parseAdminClientRouteId(editRoute), 'client id/with space');
   assert.equal(parseAdminClientRouteId('#/admin'), '');
+  assert.equal(parseAdminClientRouteId(ADMIN_NEW_CLIENT_ROUTE_HASH), '');
 });
 
 test('admin delete helpers remove clients and their diet plan records', () => {

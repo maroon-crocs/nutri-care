@@ -13,6 +13,7 @@ export const ADMIN_CLIENTS_STORAGE_KEY = 'nutriguide:admin-clients';
 export const ADMIN_PLAN_RECORDS_STORAGE_KEY = 'nutriguide:admin-plan-records';
 export const DIET_PLAN_PDF_BUCKET = 'diet-plan-pdfs';
 export const ADMIN_PANEL_ROUTE_HASH = '#/admin';
+export const ADMIN_NEW_CLIENT_ROUTE_HASH = '#/admin/clients/new';
 
 export const ADMIN_CLIENT_STATUSES: Array<{
   id: AdminClientStatus;
@@ -65,19 +66,25 @@ const getObject = (value: unknown): Record<string, unknown> =>
 export const buildAdminClientRouteHash = (clientId: string): string =>
   `${ADMIN_PANEL_ROUTE_HASH}/clients/${encodeURIComponent(clientId)}`;
 
+export const buildAdminClientEditRouteHash = (clientId: string): string =>
+  `${buildAdminClientRouteHash(clientId)}/edit`;
+
 export const parseAdminClientRouteId = (hash: string): string => {
   const routePrefix = `${ADMIN_PANEL_ROUTE_HASH}/clients/`;
 
-  if (!hash.startsWith(routePrefix)) {
+  if (!hash.startsWith(routePrefix) || hash === ADMIN_NEW_CLIENT_ROUTE_HASH) {
     return '';
   }
 
   const rawClientId = hash.slice(routePrefix.length).split(/[?#]/)[0];
+  const clientId = rawClientId.endsWith('/edit')
+    ? rawClientId.slice(0, -'/edit'.length)
+    : rawClientId;
 
   try {
-    return decodeURIComponent(rawClientId);
+    return decodeURIComponent(clientId);
   } catch {
-    return rawClientId;
+    return clientId;
   }
 };
 

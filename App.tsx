@@ -29,6 +29,7 @@ const App: React.FC = () => {
       currentHash === '#' ||
       currentHash === '#/diet-plan' ||
       currentHash === '#/admin' ||
+      currentHash === '#/admin/clients/new' ||
       currentHash.startsWith('#/admin/clients/')
     ) {
       window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -44,7 +45,9 @@ const App: React.FC = () => {
 
   const isDietPlanPage = currentHash === '#/diet-plan';
   const isAdminPage =
-    currentHash === '#/admin' || currentHash.startsWith('#/admin/clients/');
+    currentHash === '#/admin' ||
+    currentHash === '#/admin/clients/new' ||
+    currentHash.startsWith('#/admin/clients/');
 
   return (
     <div className="min-h-screen font-sans selection:bg-leaf-200 selection:text-leaf-900">

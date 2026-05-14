@@ -7,6 +7,7 @@ import {
   Download,
   FileText,
   LogOut,
+  Pencil,
   Plus,
   RefreshCcw,
   Save,
@@ -26,8 +27,10 @@ import type {
 } from '../types';
 import {
   ADMIN_CLIENT_STATUSES,
+  ADMIN_NEW_CLIENT_ROUTE_HASH,
   ADMIN_PAYMENT_STATUSES,
   ADMIN_SESSION_STORAGE_KEY,
+  buildAdminClientEditRouteHash,
   buildAdminClientRouteHash,
   buildClientIntakeMessage,
   createAdminClient,
@@ -115,7 +118,10 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ currentHash }) => {
     () => parseAdminClientRouteId(currentHash),
     [currentHash],
   );
-  const isClientDetailRoute = Boolean(routeClientId);
+  const isCreateClientRoute = currentHash === ADMIN_NEW_CLIENT_ROUTE_HASH;
+  const isEditClientRoute = Boolean(routeClientId) && currentHash.endsWith('/edit');
+  const isProfileFormRoute = isCreateClientRoute || isEditClientRoute;
+  const isClientDetailRoute = Boolean(routeClientId) && !isEditClientRoute;
 
   const activeClient = useMemo(
     () =>
@@ -279,6 +285,15 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ currentHash }) => {
     }
   }, [clients, routeClientId]);
 
+  useEffect(() => {
+    if (!isCreateClientRoute) {
+      return;
+    }
+
+    setActiveClientId('');
+    setDraftClient(createFreshClient());
+  }, [isCreateClientRoute]);
+
   const refreshData = async () => {
     try {
       await loadAdminData();
@@ -323,7 +338,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ currentHash }) => {
     setActiveClientId('');
     setDraftClient(createFreshClient());
     setNotice(null);
-    window.location.hash = '#/admin';
+    window.location.hash = ADMIN_NEW_CLIENT_ROUTE_HASH;
   };
 
   const saveClient = async () => {
@@ -607,18 +622,24 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ currentHash }) => {
                 Nutritionist admin
               </p>
               <h1 className="font-serif text-4xl font-bold text-slate-950 md:text-5xl">
-                {isClientDetailRoute
+                {isCreateClientRoute
+                  ? 'Create Client Profile'
+                  : isEditClientRoute
+                    ? `Edit ${activeClient?.name || 'Client'}`
+                    : isClientDetailRoute
                   ? activeClient?.name || 'Client Details'
                   : 'Client Workflow Dashboard'}
               </h1>
               <p className="mt-4 max-w-3xl text-base leading-relaxed text-slate-600">
-                {isClientDetailRoute
+                {isProfileFormRoute
+                  ? 'Complete the client intake once, then save and continue to the client workspace.'
+                  : isClientDetailRoute
                   ? 'Edit intake details, review every saved diet plan, open drafts, download PDFs, and clean up this client record.'
                   : 'Manage clients, intake details, payment status, follow-ups, and saved diet plan history from one private workspace.'}
               </p>
             </div>
             <div className="flex flex-wrap gap-3">
-              {isClientDetailRoute && (
+              {(isClientDetailRoute || isProfileFormRoute) && (
                 <button
                   type="button"
                   onClick={() => {
@@ -641,6 +662,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ currentHash }) => {
               <button
                 type="button"
                 onClick={startNewClient}
+                disabled={isCreateClientRoute}
                 className="inline-flex items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700 transition hover:border-leaf-300 hover:text-leaf-700"
               >
                 <Plus size={18} />
@@ -672,6 +694,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ currentHash }) => {
       </section>
 
       <section className="container mx-auto px-6 py-8">
+        {!isProfileFormRoute && (
         <div className="mb-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
           {stats.map((stat) => (
             <div
@@ -687,8 +710,16 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ currentHash }) => {
             </div>
           ))}
         </div>
+        )}
 
-        <div className="grid gap-6 xl:grid-cols-[360px_minmax(0,1fr)]">
+        <div
+          className={
+            isProfileFormRoute
+              ? 'mx-auto max-w-5xl'
+              : 'grid gap-6 xl:grid-cols-[360px_minmax(0,1fr)]'
+          }
+        >
+          {!isProfileFormRoute && (
           <aside className="space-y-4 xl:sticky xl:top-28 xl:self-start">
             {isClientDetailRoute ? (
               <div className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
@@ -752,6 +783,18 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ currentHash }) => {
                       >
                         <Sparkles size={17} />
                         New Diet Plan
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          window.location.hash = buildAdminClientEditRouteHash(
+                            activeClient.id,
+                          );
+                        }}
+                        className="inline-flex items-center justify-center gap-2 rounded-lg border border-slate-200 px-4 py-3 text-sm font-semibold text-slate-700 transition hover:border-leaf-300 hover:text-leaf-700"
+                      >
+                        <Pencil size={17} />
+                        Edit Profile
                       </button>
                       <button
                         type="button"
@@ -847,8 +890,10 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ currentHash }) => {
               </>
             )}
           </aside>
+          )}
 
           <div className="space-y-6">
+            {isProfileFormRoute && (
             <section className="rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
               <div className="mb-6 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
                 <div className="flex items-center gap-3">
@@ -857,10 +902,10 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ currentHash }) => {
                   </div>
                   <div>
                     <h2 className="text-lg font-bold text-slate-900">
-                      Client Profile
+                      {isCreateClientRoute ? 'New Client Profile' : 'Edit Client Profile'}
                     </h2>
                     <p className="text-sm text-slate-500">
-                      Save full intake details before creating a plan.
+                      Save intake details before creating or updating diet plans.
                     </p>
                   </div>
                 </div>
@@ -1213,7 +1258,9 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ currentHash }) => {
                 </label>
               </div>
             </section>
+            )}
 
+            {!isProfileFormRoute && (
             <section className="rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
               <div className="mb-5 flex items-center justify-between gap-4">
                 <div className="flex items-center gap-3">
@@ -1292,7 +1339,9 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ currentHash }) => {
                 )}
               </div>
             </section>
+            )}
 
+            {!isProfileFormRoute && !isClientDetailRoute && (
             <section className="rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
               <div className="mb-5 flex items-center gap-3">
                 <CalendarClock size={20} className="text-leaf-700" />
@@ -1331,6 +1380,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ currentHash }) => {
                 )}
               </div>
             </section>
+            )}
           </div>
         </div>
       </section>
