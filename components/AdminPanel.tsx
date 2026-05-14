@@ -29,6 +29,7 @@ import type {
 import {
   ADMIN_CLIENT_STATUSES,
   ADMIN_NEW_CLIENT_ROUTE_HASH,
+  ADMIN_NOTICE_STORAGE_KEY,
   ADMIN_PAYMENT_STATUSES,
   ADMIN_SESSION_STORAGE_KEY,
   buildAdminClientEditRouteHash,
@@ -199,6 +200,35 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ currentHash }) => {
     setClients(nextClients);
     setPlanRecords(nextPlanRecords);
   };
+
+  useEffect(() => {
+    const storedNotice = window.sessionStorage.getItem(ADMIN_NOTICE_STORAGE_KEY);
+
+    if (!storedNotice) {
+      return;
+    }
+
+    window.sessionStorage.removeItem(ADMIN_NOTICE_STORAGE_KEY);
+
+    try {
+      const parsedNotice = JSON.parse(storedNotice) as {
+        type?: unknown;
+        message?: unknown;
+      };
+
+      if (
+        (parsedNotice.type === 'success' || parsedNotice.type === 'error') &&
+        typeof parsedNotice.message === 'string'
+      ) {
+        setNotice({
+          type: parsedNotice.type,
+          message: parsedNotice.message,
+        });
+      }
+    } catch {
+      setNotice(null);
+    }
+  }, []);
 
   useEffect(() => {
     let isMounted = true;

@@ -38,7 +38,9 @@ import {
   normalizeInstagramHandle,
 } from '../utils/dietPlan';
 import {
+  ADMIN_NOTICE_STORAGE_KEY,
   ADMIN_SESSION_STORAGE_KEY,
+  buildAdminClientRouteHash,
   saveAdminDietPlanRecordAsync,
 } from '../utils/adminPanel';
 import {
@@ -64,6 +66,13 @@ const labelClassName = 'mb-2 block text-sm font-semibold text-slate-700';
 
 const DIET_TYPE_OPTIONS = ['Veg', 'Eggetarian', 'Non-veg'] as const;
 const WORKOUT_STATUS_OPTIONS = ['Yes', 'No'] as const;
+
+const waitForSaveLoaderPaint = (): Promise<void> =>
+  new Promise((resolve) => {
+    window.requestAnimationFrame(() => {
+      window.requestAnimationFrame(() => resolve());
+    });
+  });
 
 type FlowStep = {
   id: WizardStepId;
@@ -142,6 +151,9 @@ const DietPlanCreator: React.FC = () => {
   const [notice, setNotice] = useState<NoticeState>(null);
   const [isLoaded, setIsLoaded] = useState(false);
   const [isGeneratingDietPlan, setIsGeneratingDietPlan] = useState(false);
+  const [savingHistoryStatus, setSavingHistoryStatus] = useState<
+    'draft' | 'final' | null
+  >(null);
   const [aiReviewNotes, setAiReviewNotes] = useState<string[]>([]);
   const [activeWizardStep, setActiveWizardStep] =
     useState<WizardStepId>('patient');
@@ -265,6 +277,9 @@ const DietPlanCreator: React.FC = () => {
   const activeStep = flowSteps.find((step) => step.id === activeWizardStep) || flowSteps[0];
   const canGoBack = activeStepIndex > 0;
   const canGoNext = activeStepIndex < WIZARD_STEP_ORDER.length - 1;
+  const isSavingHistory = Boolean(savingHistoryStatus);
+  const isSavingDraft = savingHistoryStatus === 'draft';
+  const isSavingFinalPlan = savingHistoryStatus === 'final';
 
   const goToPreviousStep = () => {
     if (!canGoBack) {
@@ -483,6 +498,10 @@ const DietPlanCreator: React.FC = () => {
 
   const saveToAdminHistory = async (status: 'draft' | 'final') => {
     try {
+      if (savingHistoryStatus) {
+        return;
+      }
+
       if (status === 'final' && !plan.sourceClientId) {
         setNotice({
           type: 'error',
@@ -492,18 +511,34 @@ const DietPlanCreator: React.FC = () => {
         return;
       }
 
+      setSavingHistoryStatus(status);
+      setNotice(null);
+      await waitForSaveLoaderPaint();
+
       const shouldStorePdf = status === 'final';
       await saveAdminDietPlanRecordAsync(plan, status, {
         pdfBlob: shouldStorePdf ? createDietPlanPdfBlob(plan) : undefined,
         pdfFileName: shouldStorePdf ? buildDietPlanPdfFileName(plan) : undefined,
       });
-      setNotice({
+
+      const successNotice = {
         type: 'success',
         message:
           status === 'final'
             ? 'Final plan and PDF saved to customer history.'
             : 'Draft saved to admin history.',
-      });
+      } as const;
+
+      if (status === 'final' && plan.sourceClientId) {
+        window.sessionStorage.setItem(
+          ADMIN_NOTICE_STORAGE_KEY,
+          JSON.stringify(successNotice),
+        );
+        window.location.hash = buildAdminClientRouteHash(plan.sourceClientId);
+        return;
+      }
+
+      setNotice(successNotice);
     } catch (error) {
       setNotice({
         type: 'error',
@@ -512,6 +547,8 @@ const DietPlanCreator: React.FC = () => {
             ? error.message
             : 'Could not save plan history in this browser.',
       });
+    } finally {
+      setSavingHistoryStatus(null);
     }
   };
 
@@ -615,10 +652,15 @@ const DietPlanCreator: React.FC = () => {
               <button
                 type="button"
                 onClick={() => saveToAdminHistory('draft')}
-                className="inline-flex items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700 transition hover:border-leaf-300 hover:text-leaf-700"
+                disabled={isSavingHistory}
+                className="inline-flex items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700 transition hover:border-leaf-300 hover:text-leaf-700 disabled:cursor-not-allowed disabled:border-slate-100 disabled:text-slate-300"
               >
-                <FileText size={18} />
-                Save Draft
+                {isSavingDraft ? (
+                  <Loader2 size={18} className="animate-spin" />
+                ) : (
+                  <FileText size={18} />
+                )}
+                {isSavingDraft ? 'Saving Draft...' : 'Save Draft'}
               </button>
             </div>
           </div>
@@ -642,7 +684,8 @@ const DietPlanCreator: React.FC = () => {
                 key={step.label}
                 type="button"
                 onClick={() => setActiveWizardStep(step.id)}
-                className={`rounded-lg border p-4 text-left transition ${
+                disabled={isSavingHistory}
+                className={`rounded-lg border p-4 text-left transition disabled:cursor-not-allowed disabled:opacity-70 ${
                   step.id === activeWizardStep
                     ? 'border-leaf-500 bg-white shadow-sm ring-2 ring-leaf-100'
                     : step.isDone
@@ -691,7 +734,7 @@ const DietPlanCreator: React.FC = () => {
                 <button
                   type="button"
                   onClick={goToPreviousStep}
-                  disabled={!canGoBack}
+                  disabled={!canGoBack || isSavingHistory}
                   className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg border border-slate-200 px-4 text-sm font-semibold text-slate-700 transition hover:border-leaf-300 hover:text-leaf-700 disabled:cursor-not-allowed disabled:border-slate-100 disabled:text-slate-300"
                 >
                   <ChevronLeft size={17} />
@@ -1154,6 +1197,48 @@ const DietPlanCreator: React.FC = () => {
               placeholder="Water intake, oil limits, follow-up reminders, and special notes"
             />
 
+            <div
+              className={`mt-5 rounded-lg border p-4 ${
+                isSavingFinalPlan
+                  ? 'border-leaf-300 bg-leaf-50'
+                  : isClientLinked
+                    ? 'border-leaf-200 bg-leaf-50/70'
+                    : 'border-amber-200 bg-amber-50'
+              }`}
+            >
+              <div className="flex gap-3">
+                <div
+                  className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg ${
+                    isSavingFinalPlan
+                      ? 'bg-leaf-600 text-white'
+                      : isClientLinked
+                        ? 'bg-white text-leaf-700'
+                        : 'bg-white text-amber-700'
+                  }`}
+                >
+                  {isSavingFinalPlan ? (
+                    <Loader2 size={20} className="animate-spin" />
+                  ) : (
+                    <Check size={20} />
+                  )}
+                </div>
+                <div>
+                  <p className="font-bold text-slate-900">
+                    {isSavingFinalPlan
+                      ? 'Saving diet plan...'
+                      : 'Save destination'}
+                  </p>
+                  <p className="mt-1 text-sm leading-6 text-slate-600">
+                    {isSavingFinalPlan
+                      ? 'Creating the PDF, storing the editable plan, and linking it to this client.'
+                      : isClientLinked
+                        ? 'The editable plan and PDF will be stored in this client history, then you will return to the client page.'
+                        : 'Final saving is available only for plans linked to a saved admin client.'}
+                  </p>
+                </div>
+              </div>
+            </div>
+
             <div className="mt-6 border-t border-slate-100 pt-5">
               <div className="mb-4 flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
                 <div>
@@ -1210,7 +1295,7 @@ const DietPlanCreator: React.FC = () => {
               <button
                 type="button"
                 onClick={goToPreviousStep}
-                disabled={!canGoBack}
+                disabled={!canGoBack || isSavingHistory}
                 className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg border border-slate-200 px-4 text-sm font-semibold text-slate-700 transition hover:border-leaf-300 hover:text-leaf-700 disabled:cursor-not-allowed disabled:border-slate-100 disabled:text-slate-300"
               >
                 <ChevronLeft size={17} />
@@ -1222,7 +1307,8 @@ const DietPlanCreator: React.FC = () => {
                     <button
                       type="button"
                       onClick={handleDownloadPdf}
-                      className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg border border-slate-200 px-4 text-sm font-semibold text-slate-700 transition hover:border-leaf-300 hover:text-leaf-700"
+                      disabled={isSavingHistory}
+                      className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg border border-slate-200 px-4 text-sm font-semibold text-slate-700 transition hover:border-leaf-300 hover:text-leaf-700 disabled:cursor-not-allowed disabled:border-slate-100 disabled:text-slate-300"
                     >
                       <Download size={17} />
                       Preview PDF
@@ -1230,7 +1316,7 @@ const DietPlanCreator: React.FC = () => {
                     <button
                       type="button"
                       onClick={() => saveToAdminHistory('final')}
-                      disabled={!isClientLinked}
+                      disabled={!isClientLinked || isSavingHistory}
                       className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-leaf-600 px-5 text-sm font-semibold text-white transition hover:bg-leaf-700 disabled:cursor-not-allowed disabled:bg-slate-300"
                       title={
                         isClientLinked
@@ -1238,8 +1324,12 @@ const DietPlanCreator: React.FC = () => {
                           : 'Create this plan from a saved admin client first'
                       }
                     >
-                      <Check size={17} />
-                      Save Diet Plan
+                      {isSavingFinalPlan ? (
+                        <Loader2 size={17} className="animate-spin" />
+                      ) : (
+                        <Check size={17} />
+                      )}
+                      {isSavingFinalPlan ? 'Saving Diet Plan...' : 'Save Diet Plan'}
                     </button>
                   </>
                 )}
@@ -1247,7 +1337,8 @@ const DietPlanCreator: React.FC = () => {
                   <button
                     type="button"
                     onClick={goToNextStep}
-                    className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-slate-900 px-5 text-sm font-semibold text-white transition hover:bg-slate-800"
+                    disabled={isSavingHistory}
+                    className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-slate-900 px-5 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:bg-slate-300"
                   >
                     Continue
                     <ChevronRight size={17} />

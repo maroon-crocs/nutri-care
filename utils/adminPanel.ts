@@ -9,6 +9,7 @@ import { createEmptyDietPlan, normalizeDietPlan } from './dietPlan.ts';
 import { isSupabaseConfigured, supabase } from './supabaseClient.ts';
 
 export const ADMIN_SESSION_STORAGE_KEY = 'nutriguide:admin-session';
+export const ADMIN_NOTICE_STORAGE_KEY = 'nutriguide:admin-notice';
 export const ADMIN_CLIENTS_STORAGE_KEY = 'nutriguide:admin-clients';
 export const ADMIN_PLAN_RECORDS_STORAGE_KEY = 'nutriguide:admin-plan-records';
 export const DIET_PLAN_PDF_BUCKET = 'diet-plan-pdfs';
