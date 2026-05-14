@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import {
+  ArrowLeft,
   CalendarDays,
   Check,
   Clipboard,
@@ -11,6 +12,7 @@ import {
   Phone,
   RefreshCcw,
   Send,
+  ShieldCheck,
   Sparkles,
   UserRound,
 } from 'lucide-react';
@@ -39,12 +41,20 @@ import {
   normalizeInstagramHandle,
   splitTextIntoShareChunks,
 } from '../utils/dietPlan';
-import { saveAdminDietPlanRecordAsync } from '../utils/adminPanel';
+import {
+  ADMIN_SESSION_STORAGE_KEY,
+  saveAdminDietPlanRecordAsync,
+} from '../utils/adminPanel';
 import {
   buildDietPlanPdfFileName,
   createDietPlanPdfBlob,
   downloadDietPlanPdf,
 } from '../utils/dietPlanPdf';
+import {
+  getSupabaseSession,
+  isSupabaseConfigured,
+  supabase,
+} from '../utils/supabaseClient';
 
 type NoticeState = {
   type: 'success' | 'error';
@@ -58,6 +68,12 @@ const labelClassName = 'mb-2 block text-sm font-semibold text-slate-700';
 
 const DIET_TYPE_OPTIONS = ['Veg', 'Eggetarian', 'Non-veg'] as const;
 const WORKOUT_STATUS_OPTIONS = ['Yes', 'No'] as const;
+
+type FlowStep = {
+  label: string;
+  detail: string;
+  isDone: boolean;
+};
 
 const joinLabels = (values: string[]): string => {
   if (values.length <= 1) {
@@ -110,6 +126,11 @@ const getAiMissingFields = (plan: DietPlan): string[] => {
 
 const DietPlanCreator: React.FC = () => {
   const [plan, setPlan] = useState<DietPlan>(() => createEmptyDietPlan());
+  const [isCheckingAuth, setIsCheckingAuth] = useState(true);
+  const [isAuthenticated, setIsAuthenticated] = useState(() =>
+    !isSupabaseConfigured &&
+    window.sessionStorage.getItem(ADMIN_SESSION_STORAGE_KEY) === 'unlocked',
+  );
   const [activeDayIndex, setActiveDayIndex] = useState(0);
   const [selectedTemplateId, setSelectedTemplateId] =
     useState<DietPlanTemplateId>('balancedVegetarian');
@@ -118,6 +139,55 @@ const DietPlanCreator: React.FC = () => {
   const [isGeneratingDietPlan, setIsGeneratingDietPlan] = useState(false);
   const [aiReviewNotes, setAiReviewNotes] = useState<string[]>([]);
   const [instagramChunkIndex, setInstagramChunkIndex] = useState(0);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const checkAuth = async () => {
+      try {
+        if (isSupabaseConfigured) {
+          const session = await getSupabaseSession();
+          if (isMounted) {
+            setIsAuthenticated(Boolean(session));
+          }
+          return;
+        }
+
+        if (isMounted) {
+          setIsAuthenticated(
+            window.sessionStorage.getItem(ADMIN_SESSION_STORAGE_KEY) ===
+              'unlocked',
+          );
+        }
+      } catch {
+        if (isMounted) {
+          setIsAuthenticated(false);
+        }
+      } finally {
+        if (isMounted) {
+          setIsCheckingAuth(false);
+        }
+      }
+    };
+
+    checkAuth();
+
+    if (!supabase) {
+      return () => {
+        isMounted = false;
+      };
+    }
+
+    const { data } = supabase.auth.onAuthStateChange((_event, session) => {
+      setIsAuthenticated(Boolean(session));
+      setIsCheckingAuth(false);
+    });
+
+    return () => {
+      isMounted = false;
+      data.subscription.unsubscribe();
+    };
+  }, []);
 
   useEffect(() => {
     const savedPlan = window.localStorage.getItem(DIET_PLAN_STORAGE_KEY);
@@ -158,6 +228,43 @@ const DietPlanCreator: React.FC = () => {
       plan.patient.medicinesSupplements.trim() ||
       plan.patient.preferences.trim(),
   );
+  const aiMissingFields = useMemo(() => getAiMissingFields(plan), [plan]);
+  const isClientLinked = Boolean(plan.sourceClientId);
+  const hasMealDraft = plan.days.some((day) =>
+    MEAL_SLOTS.some((slot) => day.meals[slot.id].trim()),
+  );
+  const hasPdfGuidance = Boolean(
+    plan.selectedGuidelines.length || plan.instructions.trim(),
+  );
+  const flowSteps: FlowStep[] = [
+    {
+      label: 'Client',
+      detail: isClientLinked ? 'Linked to saved customer' : 'Start from admin client',
+      isDone: isClientLinked,
+    },
+    {
+      label: 'Intake',
+      detail: aiMissingFields.length
+        ? `${aiMissingFields.length} field${aiMissingFields.length === 1 ? '' : 's'} needed`
+        : 'Ready for AI',
+      isDone: aiMissingFields.length === 0,
+    },
+    {
+      label: 'Draft',
+      detail: hasMealDraft ? 'Meals added' : 'Generate or enter meals',
+      isDone: hasMealDraft,
+    },
+    {
+      label: 'PDF',
+      detail: hasPdfGuidance ? 'Guidance selected' : 'Select final PDF notes',
+      isDone: hasPdfGuidance,
+    },
+    {
+      label: 'Save',
+      detail: 'Final stores PDF per customer',
+      isDone: false,
+    },
+  ];
 
   useEffect(() => {
     if (instagramChunkIndex >= instagramChunks.length) {
@@ -259,7 +366,7 @@ const DietPlanCreator: React.FC = () => {
   };
 
   const generatePlanWithAI = async () => {
-    const missingFields = getAiMissingFields(plan);
+    const missingFields = aiMissingFields;
 
     if (missingFields.length > 0) {
       setNotice({
@@ -419,6 +526,15 @@ const DietPlanCreator: React.FC = () => {
 
   const saveToAdminHistory = async (status: 'draft' | 'final') => {
     try {
+      if (status === 'final' && !plan.sourceClientId) {
+        setNotice({
+          type: 'error',
+          message:
+            'Open this flow from a saved admin client before saving final PDF.',
+        });
+        return;
+      }
+
       const shouldStorePdf = status === 'final';
       await saveAdminDietPlanRecordAsync(plan, status, {
         pdfBlob: shouldStorePdf ? createDietPlanPdfBlob(plan) : undefined,
@@ -431,10 +547,13 @@ const DietPlanCreator: React.FC = () => {
             ? 'Final plan and PDF saved to customer history.'
             : 'Draft saved to admin history.',
       });
-    } catch {
+    } catch (error) {
       setNotice({
         type: 'error',
-        message: 'Could not save plan history in this browser.',
+        message:
+          error instanceof Error
+            ? error.message
+            : 'Could not save plan history in this browser.',
       });
     }
   };
@@ -444,6 +563,52 @@ const DietPlanCreator: React.FC = () => {
     plan.patient.goal.trim() || 'Weekly nutrition plan',
   ].join(' - ');
 
+  if (isCheckingAuth) {
+    return (
+      <main className="flex min-h-screen items-center justify-center bg-slate-50 px-6 pt-24 text-slate-900">
+        <div className="rounded-lg border border-slate-200 bg-white p-8 text-center shadow-sm">
+          <div className="mx-auto mb-4 h-10 w-10 animate-spin rounded-full border-b-2 border-leaf-600" />
+          <p className="text-sm font-semibold text-slate-600">
+            Checking admin session...
+          </p>
+        </div>
+      </main>
+    );
+  }
+
+  if (!isAuthenticated) {
+    return (
+      <main className="min-h-screen bg-slate-50 px-6 pt-28 text-slate-900">
+        <section className="mx-auto max-w-xl rounded-lg border border-slate-200 bg-white p-8 shadow-sm">
+          <div className="mb-6 flex items-center gap-3">
+            <div className="flex h-11 w-11 items-center justify-center rounded-lg bg-leaf-600 text-white">
+              <ShieldCheck size={22} />
+            </div>
+            <div>
+              <h1 className="text-2xl font-bold text-slate-950">
+                Admin Login Required
+              </h1>
+              <p className="text-sm text-slate-500">
+                Diet plan creation and customer PDF storage are available only
+                inside the authenticated admin workflow.
+              </p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => {
+              window.location.hash = '#/admin';
+            }}
+            className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-leaf-600 px-4 py-3 text-sm font-semibold text-white transition hover:bg-leaf-700"
+          >
+            <ShieldCheck size={18} />
+            Go to Admin Login
+          </button>
+        </section>
+      </main>
+    );
+  }
+
   return (
     <main className="min-h-screen bg-slate-50 pt-24 text-slate-900">
       <section className="border-b border-slate-200 bg-white">
@@ -451,17 +616,45 @@ const DietPlanCreator: React.FC = () => {
           <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
             <div className="max-w-3xl">
               <p className="mb-3 text-sm font-semibold uppercase tracking-[0.18em] text-leaf-600">
-                Diet plan workspace
+                Authenticated diet plan workspace
               </p>
               <h1 className="font-serif text-4xl font-bold text-slate-950 md:text-5xl">
                 Create Weekly Diet Plan
               </h1>
               <p className="mt-4 text-base leading-relaxed text-slate-600">
                 Build a complete seven-day plan with six daily meal slots, then
-                edit, download, or share it through WhatsApp and Instagram.
+                review, save final PDF to the customer profile, and share it
+                through WhatsApp or Instagram.
               </p>
+              <div className="mt-4 flex flex-wrap gap-2 text-xs font-semibold">
+                <span className="rounded-full bg-leaf-50 px-3 py-1 text-leaf-700">
+                  <ShieldCheck size={13} className="mr-1 inline" />
+                  Authenticated
+                </span>
+                <span
+                  className={`rounded-full px-3 py-1 ${
+                    isClientLinked
+                      ? 'bg-leaf-50 text-leaf-700'
+                      : 'bg-amber-50 text-amber-700'
+                  }`}
+                >
+                  {isClientLinked
+                    ? 'Customer linked'
+                    : 'Not linked to customer'}
+                </span>
+              </div>
             </div>
             <div className="flex flex-wrap gap-3">
+              <button
+                type="button"
+                onClick={() => {
+                  window.location.hash = '#/admin';
+                }}
+                className="inline-flex items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700 transition hover:border-leaf-300 hover:text-leaf-700"
+              >
+                <ArrowLeft size={18} />
+                Admin
+              </button>
               <button
                 type="button"
                 onClick={copyPlan}
@@ -489,7 +682,13 @@ const DietPlanCreator: React.FC = () => {
               <button
                 type="button"
                 onClick={() => saveToAdminHistory('final')}
-                className="inline-flex items-center justify-center gap-2 rounded-lg border border-leaf-200 bg-leaf-50 px-4 py-3 text-sm font-semibold text-leaf-800 transition hover:border-leaf-300"
+                disabled={!isClientLinked}
+                className="inline-flex items-center justify-center gap-2 rounded-lg border border-leaf-200 bg-leaf-50 px-4 py-3 text-sm font-semibold text-leaf-800 transition hover:border-leaf-300 disabled:cursor-not-allowed disabled:border-slate-100 disabled:bg-slate-100 disabled:text-slate-400"
+                title={
+                  isClientLinked
+                    ? 'Save final PDF to customer history'
+                    : 'Create this plan from a saved admin client first'
+                }
               >
                 <Check size={18} />
                 Save Final
@@ -517,6 +716,36 @@ const DietPlanCreator: React.FC = () => {
               {notice.message}
             </div>
           )}
+
+          <div className="mt-6 grid gap-3 md:grid-cols-5">
+            {flowSteps.map((step, index) => (
+              <div
+                key={step.label}
+                className={`rounded-lg border p-4 ${
+                  step.isDone
+                    ? 'border-leaf-200 bg-leaf-50'
+                    : 'border-slate-200 bg-slate-50'
+                }`}
+              >
+                <div className="mb-2 flex items-center justify-between gap-2">
+                  <span className="text-xs font-bold uppercase tracking-[0.12em] text-slate-500">
+                    Step {index + 1}
+                  </span>
+                  <span
+                    className={`flex h-6 w-6 items-center justify-center rounded-full text-xs font-bold ${
+                      step.isDone
+                        ? 'bg-leaf-600 text-white'
+                        : 'bg-white text-slate-500'
+                    }`}
+                  >
+                    {step.isDone ? <Check size={14} /> : index + 1}
+                  </span>
+                </div>
+                <p className="font-bold text-slate-900">{step.label}</p>
+                <p className="mt-1 text-sm text-slate-500">{step.detail}</p>
+              </div>
+            ))}
+          </div>
         </div>
       </section>
 
