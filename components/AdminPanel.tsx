@@ -1,7 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import {
   ArrowLeft,
-  CalendarClock,
   ClipboardList,
   Copy,
   Download,
@@ -130,6 +129,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ currentHash }) => {
   const isEditClientRoute = Boolean(routeClientId) && currentHash.endsWith('/edit');
   const isProfileFormRoute = isCreateClientRoute || isEditClientRoute;
   const isClientDetailRoute = Boolean(routeClientId) && !isEditClientRoute;
+  const isDashboardRoute = !isProfileFormRoute && !isClientDetailRoute;
 
   const activeClient = useMemo(
     () =>
@@ -789,7 +789,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ currentHash }) => {
       </section>
 
       <section className="container mx-auto px-6 py-8">
-        {!isProfileFormRoute && (
+        {isClientDetailRoute && (
         <div className="mb-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
           {stats.map((stat) => (
             <div
@@ -811,12 +811,95 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ currentHash }) => {
           className={
             isProfileFormRoute
               ? 'mx-auto max-w-5xl'
-              : 'grid gap-6 xl:grid-cols-[360px_minmax(0,1fr)]'
+              : isClientDetailRoute
+                ? 'grid gap-6 xl:grid-cols-[360px_minmax(0,1fr)]'
+                : 'space-y-6'
           }
         >
-          {!isProfileFormRoute && (
+          {isDashboardRoute && (
+          <section className="rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
+            <div className="mb-5 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+              <div className="flex items-center gap-3">
+                <UsersRound size={20} className="text-leaf-700" />
+                <div>
+                  <h2 className="text-lg font-bold text-slate-900">Clients</h2>
+                  <p className="text-sm text-slate-500">
+                    Select a client to open their profile, plan history, and diet plan actions.
+                  </p>
+                </div>
+              </div>
+              <div className="grid gap-3 sm:grid-cols-2 lg:min-w-[520px]">
+                <div className="relative">
+                  <Search
+                    size={17}
+                    className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
+                  />
+                  <input
+                    value={searchText}
+                    onChange={(event) => setSearchText(event.target.value)}
+                    className={`${inputClassName} pl-10`}
+                    placeholder="Search clients"
+                  />
+                </div>
+                <select
+                  value={statusFilter}
+                  onChange={(event) =>
+                    setStatusFilter(event.target.value as 'all' | AdminClientStatus)
+                  }
+                  className={inputClassName}
+                >
+                  <option value="all">All statuses</option>
+                  {ADMIN_CLIENT_STATUSES.map((status) => (
+                    <option key={status.id} value={status.id}>
+                      {status.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+              {filteredClients.length ? (
+                filteredClients.map((client) => (
+                  <button
+                    key={client.id}
+                    type="button"
+                    onClick={() => selectClient(client)}
+                    className="min-h-44 rounded-lg border border-slate-200 bg-white p-5 text-left transition hover:border-leaf-300 hover:bg-leaf-50"
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <p className="text-lg font-bold text-slate-900">
+                          {client.name || 'Unnamed client'}
+                        </p>
+                        <p className="mt-1 text-sm text-slate-500">
+                          {client.goal || 'No goal added'}
+                        </p>
+                      </div>
+                      <span className="rounded-full bg-slate-100 px-2 py-1 text-xs font-semibold text-slate-600">
+                        {statusLabelMap[client.status]}
+                      </span>
+                    </div>
+                    <div className="mt-5 space-y-2 text-sm font-semibold text-slate-500">
+                      <p>{client.phone || client.instagramHandle || 'No contact'}</p>
+                      <p>
+                        {paymentLabelMap[client.paymentStatus]} - Follow-up:{' '}
+                        {formatDate(client.followUpDate)}
+                      </p>
+                    </div>
+                  </button>
+                ))
+              ) : (
+                <div className="rounded-lg border border-dashed border-slate-300 bg-white p-8 text-center text-sm text-slate-500 md:col-span-2 xl:col-span-3">
+                  No clients found.
+                </div>
+              )}
+            </div>
+          </section>
+          )}
+
+          {isClientDetailRoute && (
           <aside className="space-y-4 xl:sticky xl:top-28 xl:self-start">
-            {isClientDetailRoute ? (
               <div className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
                 <div className="mb-4 flex items-center gap-3">
                   <UserRound size={20} className="text-leaf-700" />
@@ -908,82 +991,6 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ currentHash }) => {
                   </div>
                 )}
               </div>
-            ) : (
-              <>
-            <div className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
-              <div className="mb-4 flex items-center gap-3">
-                <UsersRound size={20} className="text-leaf-700" />
-                <h2 className="text-lg font-bold text-slate-900">Clients</h2>
-              </div>
-              <div className="space-y-3">
-                <div className="relative">
-                  <Search
-                    size={17}
-                    className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
-                  />
-                  <input
-                    value={searchText}
-                    onChange={(event) => setSearchText(event.target.value)}
-                    className={`${inputClassName} pl-10`}
-                    placeholder="Search clients"
-                  />
-                </div>
-                <select
-                  value={statusFilter}
-                  onChange={(event) =>
-                    setStatusFilter(event.target.value as 'all' | AdminClientStatus)
-                  }
-                  className={inputClassName}
-                >
-                  <option value="all">All statuses</option>
-                  {ADMIN_CLIENT_STATUSES.map((status) => (
-                    <option key={status.id} value={status.id}>
-                      {status.label}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            </div>
-
-            <div className="max-h-[640px] space-y-3 overflow-auto pr-1">
-              {filteredClients.length ? (
-                filteredClients.map((client) => (
-                  <button
-                    key={client.id}
-                    type="button"
-                    onClick={() => selectClient(client)}
-                    className={`w-full rounded-lg border p-4 text-left transition ${
-                      client.id === activeClientId
-                        ? 'border-leaf-400 bg-leaf-50'
-                        : 'border-slate-200 bg-white hover:border-leaf-200'
-                    }`}
-                  >
-                    <div className="flex items-start justify-between gap-3">
-                      <div>
-                        <p className="font-bold text-slate-900">
-                          {client.name || 'Unnamed client'}
-                        </p>
-                        <p className="mt-1 text-sm text-slate-500">
-                          {client.goal || 'No goal added'}
-                        </p>
-                      </div>
-                      <span className="rounded-full bg-slate-100 px-2 py-1 text-xs font-semibold text-slate-600">
-                        {statusLabelMap[client.status]}
-                      </span>
-                    </div>
-                    <p className="mt-3 text-xs font-semibold text-slate-500">
-                      {client.phone || client.instagramHandle || 'No contact'}
-                    </p>
-                  </button>
-                ))
-              ) : (
-                <div className="rounded-lg border border-dashed border-slate-300 bg-white p-6 text-center text-sm text-slate-500">
-                  No clients found.
-                </div>
-              )}
-            </div>
-              </>
-            )}
           </aside>
           )}
 
@@ -1355,7 +1362,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ currentHash }) => {
             </section>
             )}
 
-            {!isProfileFormRoute && (
+            {isClientDetailRoute && (
             <section className="rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
               <div className="mb-5 flex items-center justify-between gap-4">
                 <div className="flex items-center gap-3">
@@ -1464,46 +1471,6 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ currentHash }) => {
             </section>
             )}
 
-            {!isProfileFormRoute && !isClientDetailRoute && (
-            <section className="rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
-              <div className="mb-5 flex items-center gap-3">
-                <CalendarClock size={20} className="text-leaf-700" />
-                <h2 className="text-lg font-bold text-slate-900">
-                  Workflow Snapshot
-                </h2>
-              </div>
-              <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-                {clients.slice(0, 6).map((client) => (
-                  <div
-                    key={client.id}
-                    className="rounded-lg border border-slate-200 p-4"
-                  >
-                    <p className="font-bold text-slate-900">{client.name}</p>
-                    <p className="mt-1 text-sm text-slate-500">
-                      {statusLabelMap[client.status]} -{' '}
-                      {paymentLabelMap[client.paymentStatus]}
-                    </p>
-                    <p className="mt-2 text-xs font-semibold text-slate-500">
-                      Follow-up: {formatDate(client.followUpDate)}
-                    </p>
-                    <button
-                      type="button"
-                      onClick={() => startDietPlan(client)}
-                      className="mt-4 inline-flex items-center justify-center gap-2 rounded-lg bg-leaf-600 px-3 py-2 text-sm font-semibold text-white transition hover:bg-leaf-700"
-                    >
-                      <Send size={15} />
-                      Plan
-                    </button>
-                  </div>
-                ))}
-                {!clients.length && (
-                  <p className="text-sm text-slate-500">
-                    Add the first client to start tracking workflow.
-                  </p>
-                )}
-              </div>
-            </section>
-            )}
           </div>
         </div>
       </section>
